@@ -1,0 +1,12 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "rootDir": "./src",
+        "paths": {
+            "@zyd-labs/datatable-kit": ["./src"],
+            "@zyd-labs/datatable-kit/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*"]
+}

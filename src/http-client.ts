@@ -1,5 +1,3 @@
-declare const window: Window & typeof globalThis;
-
 export interface DatatableHttpRequestConfig {
     params?: Record<string, unknown>;
     headers?: Record<string, string | number | boolean>;
@@ -16,25 +14,32 @@ export interface DatatableHttpClient {
     get<T = unknown>(url: string, config?: DatatableHttpRequestConfig): Promise<DatatableHttpResponse<T>>;
 }
 
-let httpClient: DatatableHttpClient | null = null;
+interface HttpClientStore {
+    __ZYD_LABS_DATATABLE_HTTP_CLIENT__?: DatatableHttpClient | null;
+}
+
+const httpClientStore = globalThis as HttpClientStore;
+const STORE_KEY = '__ZYD_LABS_DATATABLE_HTTP_CLIENT__';
 
 export function registerDatatableHttpClient(client: DatatableHttpClient): void {
-    httpClient = client;
+    httpClientStore[STORE_KEY] = client;
 }
 
 export function resolveDatatableHttpClient(): DatatableHttpClient {
-    if (httpClient === null) {
+    const client = httpClientStore[STORE_KEY];
+
+    if (!client) {
         throw new Error('Datatable HTTP istemcisi kaydedilmeden kullanılamaz.');
     }
 
-    return httpClient;
+    return client;
 }
 
 export function hasDatatableHttpClient(): boolean {
-    return httpClient !== null;
+    return Boolean(httpClientStore[STORE_KEY]);
 }
 
 export function resetDatatableHttpClient(): void {
-    httpClient = null;
+    httpClientStore[STORE_KEY] = null;
 }
 

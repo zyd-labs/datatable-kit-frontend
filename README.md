@@ -25,19 +25,19 @@ Paket dahili olarak http istemcisi barındırmaz; mevcut axios instance’ınız
 
 ```ts
 // resources/js/plugins/datatable.ts
-import { registerDatatableHttpClient } from '@zyd-labs/datatable-kit';
-import { http } from '@/services/http'; // axios instance
+import { registerDatatableHttpClient } from "@zyd-labs/datatable-kit";
+import { http } from "@/services/http"; // axios instance
 
 export function installDatatableHttpClient(): void {
-    registerDatatableHttpClient({
-        get: (url, config) => http.get(url, config),
-    });
+  registerDatatableHttpClient({
+    get: (url, config) => http.get(url, config),
+  });
 }
 ```
 
 ```ts
 // resources/js/main.ts
-import { installDatatableHttpClient } from './plugins/datatable';
+import { installDatatableHttpClient } from "./plugins/datatable";
 
 installDatatableHttpClient();
 ```
@@ -61,18 +61,30 @@ Bu sayede interceptor, auth header ve hata yönetimi projenizde tanımlandığı
 </template>
 
 <script setup lang="ts">
-import { BaseDataTable } from '@zyd-labs/datatable-kit';
-import type { ColumnDef } from '@zyd-labs/datatable-kit';
+import { BaseDataTable } from "@zyd-labs/datatable-kit";
+import type { ColumnDef } from "@zyd-labs/datatable-kit";
 
 const columns: ColumnDef[] = [
-  { field: 'name', header: 'Ad Soyad', sortable: true, filter: true, dataType: 'text' },
-  { field: 'email', header: 'E-posta', sortable: true, filter: true, dataType: 'text' },
   {
-    field: 'created_at',
-    header: 'Kayıt Tarihi',
+    field: "name",
+    header: "Ad Soyad",
     sortable: true,
     filter: true,
-    dataType: 'date',
+    dataType: "text",
+  },
+  {
+    field: "email",
+    header: "E-posta",
+    sortable: true,
+    filter: true,
+    dataType: "text",
+  },
+  {
+    field: "created_at",
+    header: "Kayıt Tarihi",
+    sortable: true,
+    filter: true,
+    dataType: "date",
   },
 ];
 </script>
@@ -81,17 +93,17 @@ const columns: ColumnDef[] = [
 ### Composable / Store
 
 ```ts
-import { useDatatable } from '@zyd-labs/datatable-kit';
+import { useDatatable } from "@zyd-labs/datatable-kit";
 
-const { fetchData, exportData } = useDatatable('/users');
+const { fetchData, exportData } = useDatatable("/users");
 
 const result = await fetchData({
   first: 0,
   rows: 25,
   filters: {
     name: {
-      operator: 'and',
-      constraints: [{ matchMode: 'contains', value: 'Ali' }],
+      operator: "and",
+      constraints: [{ matchMode: "contains", value: "Ali" }],
     },
   },
 });
@@ -108,17 +120,17 @@ console.log(result.data, result.total);
 ```ts
 const columns: ColumnDef[] = [
   {
-    field: 'status',
-    header: 'Durum',
-    dataType: 'boolean',
+    field: "status",
+    header: "Durum",
+    dataType: "boolean",
     filter: {
-      filterType: 'select',
+      filterType: "select",
       filterOptions: [
-        { label: 'Aktif', value: 1 },
-        { label: 'Pasif', value: 0 },
+        { label: "Aktif", value: 1 },
+        { label: "Pasif", value: 0 },
       ],
     },
-    render: (row) => row.status ? 'Aktif' : 'Pasif',
+    render: (row) => (row.status ? "Aktif" : "Pasif"),
   },
 ];
 ```
@@ -138,4 +150,3 @@ npm run build
 ```
 
 Tiplerin doğru çözümlenebilmesi için proje kök `tsconfig.json` içinde `@zyd-labs/datatable-kit` alias’ının `packages/datatable-kit/src` klasörünü göstermesi yeterlidir.
-

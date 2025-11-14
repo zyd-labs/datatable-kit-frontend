@@ -63,11 +63,13 @@
             <template #filter="{ filterModel }" v-if="col.filter !== false">
                 <MultiSelect v-if="getFilterConfig(col)?.filterType === 'multi-select'" v-model="filterModel.value"
                     :options="getFilterConfig(col)?.filterOptions || []" optionLabel="label" optionValue="value"
-                    :maxSelectedLabels="3" filter placeholder="Seçiniz" size="small" class="w-full" />
+                    :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
+                    :placeholder="getFilterConfig(col)?.placeholder ?? 'Seçiniz'" size="small" class="w-full" />
                 <Select v-else-if="col.dataType === 'boolean' || getFilterConfig(col)?.filterType === 'select'"
                     v-model="filterModel.value"
                     :options="getFilterConfig(col)?.filterOptions || [{ label: 'Evet', value: 1 }, { label: 'Hayır', value: 0 }]"
-                    optionLabel="label" optionValue="value" placeholder="Seçiniz" size="small" />
+                    optionLabel="label" optionValue="value"
+                    :placeholder="getFilterConfig(col)?.placeholder ?? 'Seçiniz'" size="small" />
                 <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value" placeholder="Değer"
                     size="small" />
                 <DatePicker v-else-if="col.dataType === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
@@ -98,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ColumnDef, DataTableFilter } from '../types/datatable';
+import type { ColumnDef, ColumnFilterConfig, DataTableFilter } from '../types/datatable';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import { FilterMatchMode } from '@primevue/core/api';
@@ -159,17 +161,8 @@ const visibleColumnsData = computed(() => props.columns.filter((col) => visibleC
 
 const { fetchData: apiFetch, exportData: apiExport } = useDatatable(props.endpoint);
 
-type ColumnFilterOption = { label: string; value: unknown };
-type ColumnFilterConfig = {
-    filterType?: string;
-    filterOptions?: ColumnFilterOption[];
-    operator?: 'and' | 'or';
-    showMatchModes?: boolean;
-    showOperator?: boolean;
-};
-
 const getFilterConfig = (column: ColumnDef): ColumnFilterConfig | null => {
-    return typeof column.filter === 'object' ? (column.filter as ColumnFilterConfig) : null;
+    return typeof column.filter === 'object' ? column.filter : null;
 };
 
 const initFilters = (): Record<string, DataTableFilter> => {
@@ -219,6 +212,22 @@ const isComponent = (value: unknown): boolean => {
     return Boolean(value && typeof value === 'object' && ('template' in (value as Record<string, unknown>) || 'render' in (value as Record<string, unknown>) || 'setup' in (value as Record<string, unknown>)));
 };
 
+const isConstraintValueEmpty = (value: unknown): boolean => {
+    if (value === null || value === undefined) {
+        return true;
+    }
+
+    if (typeof value === 'string') {
+        return value.trim() === '';
+    }
+
+    if (Array.isArray(value)) {
+        return value.length === 0;
+    }
+
+    return false;
+};
+
 const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
     const cleaned: Record<string, DataTableFilter> = {};
 
@@ -229,7 +238,7 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
         if (!filter || !filter.constraints) return;
 
         const validConstraints = filter.constraints.filter((constraint: any) => {
-            return constraint.value !== null && constraint.value !== undefined && constraint.value !== '';
+            return !isConstraintValueEmpty(constraint.value);
         });
 
         if (validConstraints.length > 0) {

@@ -135,6 +135,32 @@ const columns: ColumnDef[] = [
 ];
 ```
 
+### Çoklu Seçim (Multi-Select) Filtresi
+
+```ts
+const columns: ColumnDef[] = [
+  {
+    field: "status",
+    header: "Durum",
+    dataType: "multi-select",
+    filter: {
+      filterType: "multi-select",
+      filterOptions: [
+        { label: "Açık", value: "open" },
+        { label: "Kapalı", value: "closed" },
+      ],
+      operator: "and",
+      showOperator: false,
+      showMatchModes: false,
+      maxSelectedLabels: 3,
+      placeholder: "Durum seç",
+    },
+  },
+];
+```
+
+`matchMode` otomatik olarak `FilterMatchMode.IN` değerine ayarlanır ve seçilen değerler backend’e dizi olarak gönderilir. Böylece PrimeVue filtre formatını koruyarak çoklu seçim ile filtreleme yapılabilir.
+
 ## Export Akışı
 
 `BaseDataTable` içindeki “Excel indir” butonu, backend’den `responseType: 'blob'` ile gelen yanıtı otomatik indirir. Backend tarafında `Content-Disposition` başlığına dosya adını ekleyerek istemciye iletebilirsiniz.

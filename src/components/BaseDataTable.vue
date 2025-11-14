@@ -404,6 +404,11 @@ const clearFilters = () => {
 
             if (col.defaultFilter) {
                 clearedFilters[col.field] = col.defaultFilter as DataTableFilter;
+            } else if (filterConfig?.constraints?.length) {
+                clearedFilters[col.field] = {
+                    operator: filterConfig.operator || 'and',
+                    constraints: filterConfig.constraints,
+                } as DataTableFilter;
             } else {
                 clearedFilters[col.field] = {
                     operator: filterConfig?.operator || 'and',

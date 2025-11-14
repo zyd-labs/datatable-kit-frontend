@@ -60,6 +60,7 @@ export interface ColumnFilterConfig {
     showOperator?: boolean;
     placeholder?: string;
     maxSelectedLabels?: number;
+    constraints?: Array<{ value: unknown; matchMode: MatchMode }>;
 }
 
 export interface ColumnDef {

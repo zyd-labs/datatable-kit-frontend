@@ -56,8 +56,9 @@
             :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)">
             <template #body="slotProps" v-if="col.render">
                 <component v-if="isComponent(col.render)" :is="col.render" :data="slotProps.data" />
-                <div v-else-if="typeof col.render === 'function'" v-html="(col.render as Function)(slotProps.data)"
-                    class="render-content"></div>
+                <template v-else-if="typeof col.render === 'function'">
+                    <RenderCell :render-result="(col.render as Function)(slotProps.data)" />
+                </template>
             </template>
 
             <template #filter="{ filterModel }" v-if="col.filter !== false">
@@ -107,7 +108,7 @@ import { FilterMatchMode } from '@primevue/core/api';
 import { useDebounceFn } from '@vueuse/core';
 import { Button, Column, DataTable, DatePicker, IconField, InputIcon, InputNumber, InputText, MultiSelect, Select, Skeleton } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, provide, ref, watch } from 'vue';
+import { computed, defineComponent, h, onMounted, provide, ref, watch, type VNode } from 'vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -211,6 +212,31 @@ const getDefaultMatchMode = (dataType?: string, filter?: ColumnFilterConfig | nu
 const isComponent = (value: unknown): boolean => {
     return Boolean(value && typeof value === 'object' && ('template' in (value as Record<string, unknown>) || 'render' in (value as Record<string, unknown>) || 'setup' in (value as Record<string, unknown>)));
 };
+
+const isVNode = (value: unknown): value is VNode => {
+    return Boolean(value && typeof value === 'object' && '__v_isVNode' in (value as Record<string, unknown>));
+};
+
+// Component to handle render function results (VNode or string)
+const RenderCell = defineComponent({
+    props: {
+        renderResult: {
+            type: [Object, String] as unknown as () => VNode | string,
+            required: true
+        }
+    },
+    setup(props: { renderResult: VNode | string }) {
+        return () => {
+            if (isVNode(props.renderResult)) {
+                return props.renderResult;
+            }
+            return h('div', {
+                innerHTML: props.renderResult as string,
+                class: 'render-content'
+            });
+        };
+    }
+});
 
 const isConstraintValueEmpty = (value: unknown): boolean => {
     if (value === null || value === undefined) {

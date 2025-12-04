@@ -1,4 +1,4 @@
-import type { Component } from 'vue';
+import type { Component, VNode } from 'vue';
 
 export type MatchMode =
     | 'contains'
@@ -70,7 +70,7 @@ export interface ColumnDef {
     filter?: boolean | ColumnFilterConfig;
     visible?: boolean;
     dataType?: 'text' | 'numeric' | 'date' | 'boolean' | 'multi-select';
-    render?: ((data: unknown) => unknown) | Component;
+    render?: ((data: unknown) => string | VNode) | Component;
     defaultFilter?: ColumnDefaultFilter;
 }
 

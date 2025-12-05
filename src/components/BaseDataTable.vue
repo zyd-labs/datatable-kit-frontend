@@ -6,7 +6,7 @@
         @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
         size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
-        v-model:selection="selectedRows" :selectionMode="selectionMode || undefined">
+        v-model:selection="selectedRows" :selectionMode="selectionMode">
         <template #header>
             <div class="flex flex-col gap-4">
                 <div v-if="$slots['header-actions']" class="flex flex-wrap gap-2">

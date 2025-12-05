@@ -6,7 +6,7 @@
         @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
         size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
-        :selectionMode="selectionMode" v-model:selection="selectedRows">
+        :selectionMode="selectionMode || undefined" v-model:selection="selectedRows">
         <template #header>
             <div class="flex flex-col gap-4">
                 <div v-if="$slots['header-actions']" class="flex flex-wrap gap-2">
@@ -110,7 +110,7 @@ import { FilterMatchMode } from '@primevue/core/api';
 import { useDebounceFn } from '@vueuse/core';
 import { Button, Column, DataTable, DatePicker, IconField, InputIcon, InputNumber, InputText, MultiSelect, Select, Skeleton } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, provide, ref, watch, type VNode } from 'vue';
+import { computed, defineComponent, getCurrentInstance, h, onBeforeUnmount, onMounted, provide, ref, watch, type VNode } from 'vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -122,11 +122,11 @@ const props = withDefaults(defineProps<{
     defaultRows?: number;
     actionsHeader?: string;
     expandedRows?: Record<number, boolean>;
-    selectionMode?: 'single' | 'multiple' | null;
+    selectionMode?: 'single' | 'multiple';
 }>(), {
     defaultRows: 10,
     actionsHeader: 'İşlemler',
-    selectionMode: null,
+    selectionMode: undefined,
 });
 
 const emit = defineEmits<{
@@ -140,6 +140,7 @@ const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== f
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
 const isMounted = ref(false);
+const instance = getCurrentInstance();
 
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
@@ -237,8 +238,8 @@ const RenderCell = defineComponent({
                 return props.renderResult;
             }
             // Convert number to string for innerHTML
-            const content = typeof props.renderResult === 'number' 
-                ? String(props.renderResult) 
+            const content = typeof props.renderResult === 'number'
+                ? String(props.renderResult)
                 : (props.renderResult as string);
             return h('div', {
                 innerHTML: content,
@@ -322,7 +323,7 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
 };
 
 const fetchData = async () => {
-    if (!tableState.value || !isMounted.value) return;
+    if (!tableState.value || !isMounted.value || !instance?.isMounted) return;
 
     store.patch(props.tableKey, { loading: true });
 
@@ -343,10 +344,10 @@ const fetchData = async () => {
         }
 
         const result = await apiFetch(params);
-        
+
         // Component hala mount edilmiş mi kontrol et
-        if (!isMounted.value) return;
-        
+        if (!isMounted.value || !instance?.isMounted) return;
+
         store.patch(props.tableKey, {
             data: result.data,
             total: result.total,
@@ -354,8 +355,8 @@ const fetchData = async () => {
         });
     } catch (error: any) {
         // Component hala mount edilmiş mi kontrol et
-        if (!isMounted.value) return;
-        
+        if (!isMounted.value || !instance?.isMounted) return;
+
         store.patch(props.tableKey, { loading: false });
         toast.add({
             severity: 'error',
@@ -430,12 +431,16 @@ onMounted(() => {
         visibleColumns.value = props.columns.filter((c) => c.visible !== false).map((c) => c.field);
     }
 
-    // fetchData'yı nextTick ile sarmalayarak component'in tam mount edilmesini bekliyoruz
+    // fetchData'yı setTimeout ile sarmalayarak component'in tam mount edilmesini ve 
+    // PrimeVue DataTable'ın kendi lifecycle'ının tamamlanmasını bekliyoruz
     isMounted.value = true;
-    nextTick(() => {
-        if (isMounted.value) {
-            fetchData();
-        }
+    // requestAnimationFrame ile bir sonraki frame'de çalıştırıyoruz
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            if (isMounted.value) {
+                fetchData();
+            }
+        }, 0);
     });
 });
 

@@ -110,7 +110,7 @@ import { FilterMatchMode } from '@primevue/core/api';
 import { useDebounceFn } from '@vueuse/core';
 import { Button, Column, DataTable, DatePicker, IconField, InputIcon, InputNumber, InputText, MultiSelect, Select, Skeleton } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, defineComponent, h, onMounted, provide, ref, watch, type VNode } from 'vue';
+import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, provide, ref, watch, type VNode } from 'vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -139,6 +139,7 @@ const searchValue = ref('');
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
+const isMounted = ref(false);
 
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
@@ -321,7 +322,7 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
 };
 
 const fetchData = async () => {
-    if (!tableState.value) return;
+    if (!tableState.value || !isMounted.value) return;
 
     store.patch(props.tableKey, { loading: true });
 
@@ -342,12 +343,19 @@ const fetchData = async () => {
         }
 
         const result = await apiFetch(params);
+        
+        // Component hala mount edilmiş mi kontrol et
+        if (!isMounted.value) return;
+        
         store.patch(props.tableKey, {
             data: result.data,
             total: result.total,
             loading: false,
         });
     } catch (error: any) {
+        // Component hala mount edilmiş mi kontrol et
+        if (!isMounted.value) return;
+        
         store.patch(props.tableKey, { loading: false });
         toast.add({
             severity: 'error',
@@ -422,7 +430,17 @@ onMounted(() => {
         visibleColumns.value = props.columns.filter((c) => c.visible !== false).map((c) => c.field);
     }
 
-    fetchData();
+    // fetchData'yı nextTick ile sarmalayarak component'in tam mount edilmesini bekliyoruz
+    isMounted.value = true;
+    nextTick(() => {
+        if (isMounted.value) {
+            fetchData();
+        }
+    });
+});
+
+onBeforeUnmount(() => {
+    isMounted.value = false;
 });
 
 const refreshData = () => {

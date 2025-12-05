@@ -6,7 +6,7 @@
         @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
         size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
-        :selectionMode="selectionMode || undefined" v-model:selection="selectedRows">
+        v-model:selection="selectedRows" :selectionMode="selectionMode">
         <template #header>
             <div class="flex flex-col gap-4">
                 <div v-if="$slots['header-actions']" class="flex flex-wrap gap-2">
@@ -50,7 +50,7 @@
             <Skeleton height="3rem" class="mb-2" v-for="i in 5" :key="i" />
         </template>
 
-        <Column v-if="selectionMode" selectionMode="multiple" :exportable="false" style="width: 3rem" />
+        <Column v-if="selectionMode" selectionMode="multiple" :exportable="false" headerStyle="width: 3rem" style="width: 3rem" />
         <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
         <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :header="col.header"
             :sortable="col.sortable !== false" :dataType="col.dataType || 'text'"

@@ -5,7 +5,8 @@
         filterDisplay="menu" :globalFilterFields="globalFilterFields" removableSort @page="onPage" @sort="onSort"
         @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
-        size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle">
+        size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
+        :selectionMode="selectionMode" v-model:selection="selectedRows">
         <template #header>
             <div class="flex flex-col gap-4">
                 <div v-if="$slots['header-actions']" class="flex flex-wrap gap-2">
@@ -49,6 +50,7 @@
             <Skeleton height="3rem" class="mb-2" v-for="i in 5" :key="i" />
         </template>
 
+        <Column v-if="selectionMode" selectionMode="multiple" :exportable="false" style="width: 3rem" />
         <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
         <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :header="col.header"
             :sortable="col.sortable !== false" :dataType="col.dataType || 'text'"
@@ -120,9 +122,11 @@ const props = withDefaults(defineProps<{
     defaultRows?: number;
     actionsHeader?: string;
     expandedRows?: Record<number, boolean>;
+    selectionMode?: 'single' | 'multiple' | null;
 }>(), {
     defaultRows: 10,
     actionsHeader: 'İşlemler',
+    selectionMode: null,
 });
 
 const emit = defineEmits<{
@@ -134,6 +138,7 @@ const toast = useToast();
 const searchValue = ref('');
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
+const selectedRows = ref<unknown[]>([]);
 
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
@@ -217,21 +222,25 @@ const isVNode = (value: unknown): value is VNode => {
     return Boolean(value && typeof value === 'object' && '__v_isVNode' in (value as Record<string, unknown>));
 };
 
-// Component to handle render function results (VNode or string)
+// Component to handle render function results (VNode, string, or number)
 const RenderCell = defineComponent({
     props: {
         renderResult: {
-            type: [Object, String] as unknown as () => VNode | string,
+            type: [Object, String, Number] as unknown as () => VNode | string | number,
             required: true
         }
     },
-    setup(props: { renderResult: VNode | string }) {
+    setup(props: { renderResult: VNode | string | number }) {
         return () => {
             if (isVNode(props.renderResult)) {
                 return props.renderResult;
             }
+            // Convert number to string for innerHTML
+            const content = typeof props.renderResult === 'number' 
+                ? String(props.renderResult) 
+                : (props.renderResult as string);
             return h('div', {
-                innerHTML: props.renderResult as string,
+                innerHTML: content,
                 class: 'render-content'
             });
         };
@@ -522,10 +531,15 @@ const exportTable = async () => {
     }
 };
 
+const getSelectedRows = () => {
+    return selectedRows.value;
+};
+
 defineExpose({
     refreshData,
     clearFilters,
     exportTable,
+    getSelectedRows,
 });
 </script>
 

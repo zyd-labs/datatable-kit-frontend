@@ -13,28 +13,26 @@
                     <slot name="header-actions"></slot>
                 </div>
 
-                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <div class="flex flex-row flex-wrap items-center gap-3">
-                        <IconField iconPosition="left" class="flex-1 min-w-[12rem]">
-                            <InputIcon class="pi pi-search" />
-                            <InputText v-model="searchValue" placeholder="Ara..." @input="onSearchInput" size="small"
-                                class="w-full min-w-0" />
-                        </IconField>
+                <div class="flex flex-row flex-wrap items-center gap-3">
+                    <IconField iconPosition="left" class="flex-1 min-w-[12rem]">
+                        <InputIcon class="pi pi-search" />
+                        <InputText v-model="searchValue" placeholder="Ara..." @input="onSearchInput" size="small"
+                            class="w-full min-w-0" />
+                    </IconField>
 
-                        <div class="flex items-center gap-2 shrink-0">
-                            <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
-                                v-tooltip="'Yenile'" />
-                            <Button icon="pi pi-filter-slash" severity="secondary" size="small" @click="clearFilters"
-                                v-tooltip="'Filtreleri Temizle'" />
-                            <Button icon="pi pi-file-excel" severity="success" size="small" :loading="exporting"
-                                :disabled="exporting || tableState?.loading" @click="exportTable"
-                                v-tooltip="'Excel olarak indir'" />
-                        </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
+                            v-tooltip="'Yenile'" />
+                        <Button icon="pi pi-filter-slash" severity="secondary" size="small" @click="clearFilters"
+                            v-tooltip="'Filtreleri Temizle'" />
+                        <Button icon="pi pi-file-excel" severity="success" size="small" :loading="exporting"
+                            :disabled="exporting || tableState?.loading" @click="exportTable"
+                            v-tooltip="'Excel olarak indir'" />
                     </div>
 
                     <MultiSelect v-model="visibleColumns" :options="columns" optionLabel="header" optionValue="field"
-                        placeholder="Sütunları Seç" display="chip" :maxSelectedLabels="3" size="small"
-                        class="w-full sm:w-80" />
+                        placeholder="Sütunları Seç" display="chip" :maxSelectedLabels="2" size="small"
+                        class="w-full min-w-[10rem] max-w-[14rem] shrink-0" />
                 </div>
             </div>
         </template>

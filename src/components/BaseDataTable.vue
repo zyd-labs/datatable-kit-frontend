@@ -14,14 +14,14 @@
                 </div>
 
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                        <IconField iconPosition="left" class="flex-1 sm:flex-none">
+                    <div class="flex flex-row flex-wrap items-center gap-3">
+                        <IconField iconPosition="left" class="flex-1 min-w-[12rem]">
                             <InputIcon class="pi pi-search" />
                             <InputText v-model="searchValue" placeholder="Ara..." @input="onSearchInput" size="small"
-                                class="w-full sm:w-80" />
+                                class="w-full min-w-0" />
                         </IconField>
 
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2 shrink-0">
                             <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
                                 v-tooltip="'Yenile'" />
                             <Button icon="pi pi-filter-slash" severity="secondary" size="small" @click="clearFilters"

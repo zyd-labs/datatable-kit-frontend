@@ -14,10 +14,10 @@
                 </div>
 
                 <div class="flex flex-row flex-wrap items-center gap-3">
-                    <IconField iconPosition="left" class="flex-1 min-w-[12rem]">
+                    <IconField iconPosition="left" class="flex-1 w-full min-w-[12rem]">
                         <InputIcon class="pi pi-search" />
                         <InputText v-model="searchValue" placeholder="Ara..." @input="onSearchInput" size="small"
-                            class="w-full min-w-0" />
+                            class="min-w-0" fluid />
                     </IconField>
 
                     <div class="flex items-center gap-2 shrink-0">
@@ -32,7 +32,7 @@
 
                     <MultiSelect v-model="visibleColumns" :options="columns" optionLabel="header" optionValue="field"
                         placeholder="Sütunları Seç" display="chip" :maxSelectedLabels="2" size="small"
-                        class="w-full min-w-[10rem] max-w-[14rem] shrink-0" />
+                        class="min-w-[10rem] max-w-[14rem] shrink-0" />
                 </div>
             </div>
         </template>

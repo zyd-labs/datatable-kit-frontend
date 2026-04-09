@@ -82,7 +82,7 @@
 
         <Column v-if="$slots.actions" :exportable="false" :header="actionsHeader">
             <template #body="slotProps">
-                <div class="flex gap-1 justify-start items-center ">
+                <div class="flex gap-2 justify-start items-center ">
                     <slot name="actions" :data="slotProps.data"></slot>
                 </div>
             </template>

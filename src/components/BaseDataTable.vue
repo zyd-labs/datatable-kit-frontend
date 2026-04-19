@@ -130,6 +130,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
     (e: 'row-toggle', data: unknown): void;
+    (e: 'selection-change', rows: unknown[]): void;
 }>();
 
 const store = useDatatableStore();
@@ -138,6 +139,14 @@ const searchValue = ref('');
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
+
+watch(
+    selectedRows,
+    (rows) => {
+        emit('selection-change', rows);
+    },
+    { deep: true },
+);
 
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
@@ -534,11 +543,17 @@ const getSelectedRows = () => {
     return selectedRows.value;
 };
 
+const clearSelection = (): void => {
+    selectedRows.value = [];
+    emit('selection-change', []);
+};
+
 defineExpose({
     refreshData,
     clearFilters,
     exportTable,
     getSelectedRows,
+    clearSelection,
 });
 </script>
 

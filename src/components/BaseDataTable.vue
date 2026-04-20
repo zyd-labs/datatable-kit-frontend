@@ -69,7 +69,7 @@
                     :fetcher="lookupFetcher"
                     :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @update:model-value="filterCallback()"
+                    @update:modelValue="filterCallback()"
                     @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"

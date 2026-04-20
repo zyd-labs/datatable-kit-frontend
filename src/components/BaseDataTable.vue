@@ -495,7 +495,18 @@ const onSort = (event: any) => {
 };
 
 const onFilter = (event: any) => {
-    store.patch(props.tableKey, { filters: event.filters, first: 0 });
+    const nextFilters = event.filters as Record<string, DataTableFilter>;
+    const currentFilters = (tableState.value?.filters ?? {}) as Record<string, DataTableFilter>;
+
+    store.patch(props.tableKey, { filters: nextFilters, first: 0 });
+
+    const nextCleanedFilters = cleanFilters(nextFilters);
+    const currentCleanedFilters = cleanFilters(currentFilters);
+
+    if (JSON.stringify(nextCleanedFilters) === JSON.stringify(currentCleanedFilters)) {
+        return;
+    }
+
     fetchData();
 };
 

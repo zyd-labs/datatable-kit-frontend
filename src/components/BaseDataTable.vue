@@ -66,6 +66,7 @@
                     v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
                     :multiple="resolveFilterType(col) === 'lookup-multiple'"
                     :filters="getFilterConfig(col)?.lookupParams"
+                    :fetcher="lookupFetcher"
                     :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
                     @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
@@ -133,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { LookupSelect, type LookupOption } from '@zyd-labs/primevue-lookup';
+import { LookupSelect, type LookupFetcher, type LookupOption } from '@zyd-labs/primevue-lookup';
 import type { ColumnDef, ColumnFilterConfig, DataTableFilter, FilterConstraint } from '../types/datatable';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
@@ -153,6 +154,7 @@ const props = withDefaults(defineProps<{
     actionsHeader?: string;
     expandedRows?: Record<number, boolean>;
     selectionMode?: 'single' | 'multiple';
+    lookupFetcher?: LookupFetcher;
 }>(), {
     defaultRows: 10,
     actionsHeader: 'İşlemler',

@@ -56,21 +56,22 @@
                 </template>
             </template>
 
-            <template #filter="{ filterModel, filterCallback }" v-if="col.filter !== false">
+            <template #filter="{ filterModel }" v-if="col.filter !== false">
                 <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
                     :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
                     :optionValue="getFilterOptionValue(col)"
                     :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
                     :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-                <LookupSelect v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
-                    v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
-                    :multiple="resolveFilterType(col) === 'lookup-multiple'"
-                    :filters="getFilterConfig(col)?.lookupParams"
-                    :fetcher="lookupFetcher"
-                    appendTo="self"
-                    :placeholder="resolveFilterPlaceholder(col)"
-                    :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
+                <div v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'" class="w-full"
+                    @mousedown.stop @click.stop>
+                    <LookupSelect v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
+                        :multiple="resolveFilterType(col) === 'lookup-multiple'"
+                        :filters="getFilterConfig(col)?.lookupParams"
+                        :fetcher="lookupFetcher"
+                        :placeholder="resolveFilterPlaceholder(col)"
+                        :disabled="!getFilterConfig(col)?.lookupEndpoint"
+                        @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
+                </div>
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"
                     :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"

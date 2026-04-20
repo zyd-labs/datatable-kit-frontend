@@ -56,7 +56,7 @@
                 </template>
             </template>
 
-            <template #filter="{ filterModel }" v-if="col.filter !== false">
+            <template #filter="{ filterModel, filterCallback }" v-if="col.filter !== false">
                 <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
                     :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
                     :optionValue="getFilterOptionValue(col)"
@@ -69,6 +69,7 @@
                     :fetcher="lookupFetcher"
                     :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
+                    @update:model-value="filterCallback()"
                     @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"

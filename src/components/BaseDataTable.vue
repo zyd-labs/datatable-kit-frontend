@@ -14,17 +14,11 @@
                 </div>
 
                 <div class="flex flex-row flex-wrap items-center gap-3">
-                    <IconField iconPosition="left" class="flex-1 w-full min-w-[12rem]">
-                        <InputIcon class="pi pi-search" />
-                        <InputText v-model="searchValue" placeholder="Ara..." @input="onSearchInput" size="small"
-                            class="min-w-0" fluid />
-                    </IconField>
-
                     <div class="flex items-center gap-2 shrink-0">
                         <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
                             v-tooltip="'Yenile'" />
-                        <Button icon="pi pi-filter-slash" severity="secondary" size="small" @click="clearFilters"
-                            v-tooltip="'Filtreleri Temizle'" />
+                        <Button type="button" icon="pi pi-filter-slash" severity="secondary" size="small"
+                            @click="toggleActiveFiltersPopover" v-tooltip="'Filtreleri temizle'" />
                         <Button icon="pi pi-file-excel" severity="success" size="small" :loading="exporting"
                             :disabled="exporting || tableState?.loading" @click="exportTable"
                             v-tooltip="'Excel olarak indir'" />
@@ -63,20 +57,31 @@
             </template>
 
             <template #filter="{ filterModel }" v-if="col.filter !== false">
-                <MultiSelect v-if="getFilterConfig(col)?.filterType === 'multi-select'" v-model="filterModel.value"
-                    :options="getFilterConfig(col)?.filterOptions || []" optionLabel="label" optionValue="value"
+                <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
+                    :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
+                    :optionValue="getFilterOptionValue(col)"
                     :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
-                    :placeholder="getFilterConfig(col)?.placeholder ?? 'Seçiniz'" size="small" class="w-full" />
-                <Select v-else-if="col.dataType === 'boolean' || getFilterConfig(col)?.filterType === 'select'"
-                    v-model="filterModel.value"
-                    :options="getFilterConfig(col)?.filterOptions || [{ label: 'Evet', value: 1 }, { label: 'Hayır', value: 0 }]"
-                    optionLabel="label" optionValue="value"
-                    :placeholder="getFilterConfig(col)?.placeholder ?? 'Seçiniz'" size="small" />
-                <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value" placeholder="Değer"
-                    size="small" />
-                <DatePicker v-else-if="col.dataType === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
-                    placeholder="Tarih seç" size="small" />
-                <InputText v-else v-model="filterModel.value" type="text" placeholder="Ara..." size="small" />
+                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                <LookupSelect v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
+                    v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
+                    :multiple="resolveFilterType(col) === 'lookup-multiple'"
+                    :filters="getFilterConfig(col)?.lookupParams"
+                    :placeholder="resolveFilterPlaceholder(col)"
+                    :disabled="!getFilterConfig(col)?.lookupEndpoint"
+                    @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
+                <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
+                    v-model="filterModel.value" :options="resolveSelectOptions(col)"
+                    :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
+                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
+                    selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"
+                    size="small" class="w-full" />
+                <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value"
+                    :placeholder="resolveFilterPlaceholder(col, 'Değer')" size="small" class="w-full" />
+                <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
+                    :placeholder="resolveFilterPlaceholder(col, 'Tarih seç')" size="small" class="w-full" />
+                <InputText v-else v-model="filterModel.value" type="text"
+                    :placeholder="resolveFilterPlaceholder(col, 'Ara...')" size="small" class="w-full" />
             </template>
         </Column>
 
@@ -99,15 +104,41 @@
             <slot name="expansion" :data="data"></slot>
         </template>
     </DataTable>
+
+    <Popover ref="activeFiltersPopoverRef">
+        <div class="w-[20rem] max-w-[calc(100vw-2rem)] p-1">
+            <div class="mb-2 flex items-center justify-between">
+                <h4 class="text-sm font-semibold">Aktif Filtreler</h4>
+                <Button v-if="activeFilterRows.length" type="button" label="Tümünü temizle" text size="small"
+                    severity="danger" @click="clearFilters" />
+            </div>
+
+            <div v-if="activeFilterRows.length" class="flex flex-col gap-2">
+                <div v-for="row in activeFilterRows" :key="row.key"
+                    class="flex items-center justify-between gap-2 rounded-md border border-surface-200 px-2 py-1.5 dark:border-surface-700">
+                    <div class="min-w-0 flex-1">
+                        <div class="truncate text-xs text-surface-500">{{ row.label }}</div>
+                        <div class="truncate text-sm font-medium">{{ row.value }}</div>
+                    </div>
+                    <Button type="button" icon="pi pi-times" text rounded severity="danger" size="small"
+                        :aria-label="`${row.label} filtresini kaldır`" @click="clearSingleFilter(row.field)" />
+                </div>
+            </div>
+
+            <div v-else class="rounded-md border border-dashed border-surface-300 px-3 py-4 text-center text-sm text-surface-500 dark:border-surface-700">
+                Aktif filtre bulunmuyor.
+            </div>
+        </div>
+    </Popover>
 </template>
 
 <script setup lang="ts">
-import type { ColumnDef, ColumnFilterConfig, DataTableFilter } from '../types/datatable';
+import { LookupSelect, type LookupOption } from '@zyd-labs/primevue-lookup';
+import type { ColumnDef, ColumnFilterConfig, DataTableFilter, FilterConstraint } from '../types/datatable';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import { FilterMatchMode } from '@primevue/core/api';
-import { useDebounceFn } from '@vueuse/core';
-import { Button, Column, DataTable, DatePicker, IconField, InputIcon, InputNumber, InputText, MultiSelect, Select, Skeleton } from 'primevue';
+import { Button, Column, DataTable, DatePicker, InputNumber, InputText, MultiSelect, Popover, Select, Skeleton } from 'primevue';
 import { useToast } from 'primevue/usetoast';
 import { computed, defineComponent, h, onMounted, provide, ref, watch, type VNode } from 'vue';
 
@@ -131,11 +162,12 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
     (e: 'row-toggle', data: unknown): void;
     (e: 'selection-change', rows: unknown[]): void;
+    (e: 'filters-change', filters: Record<string, DataTableFilter>): void;
 }>();
 
 const store = useDatatableStore();
 const toast = useToast();
-const searchValue = ref('');
+const activeFiltersPopoverRef = ref();
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
@@ -179,6 +211,49 @@ const getFilterConfig = (column: ColumnDef): ColumnFilterConfig | null => {
     return typeof column.filter === 'object' ? column.filter : null;
 };
 
+const resolveFilterType = (column: ColumnDef): NonNullable<ColumnFilterConfig['filterType']> => {
+    const filterConfig = getFilterConfig(column);
+    if (filterConfig?.filterType) {
+        return filterConfig.filterType;
+    }
+
+    if (column.dataType === 'boolean') {
+        return 'boolean';
+    }
+
+    if (column.dataType === 'date') {
+        return 'date';
+    }
+
+    return 'text';
+};
+
+const getFilterOptions = (column: ColumnDef): Array<Record<string, unknown>> => {
+    return (getFilterConfig(column)?.filterOptions ?? []) as Array<Record<string, unknown>>;
+};
+
+const getFilterOptionLabel = (column: ColumnDef): string => {
+    return getFilterConfig(column)?.filterOptionLabel ?? 'label';
+};
+
+const getFilterOptionValue = (column: ColumnDef): string => {
+    return getFilterConfig(column)?.filterOptionValue ?? 'value';
+};
+
+const resolveFilterPlaceholder = (column: ColumnDef, fallback = 'Seçiniz'): string => {
+    const filterConfig = getFilterConfig(column);
+
+    return filterConfig?.filterPlaceholder ?? filterConfig?.placeholder ?? fallback;
+};
+
+const resolveSelectOptions = (column: ColumnDef): Array<Record<string, unknown>> => {
+    if (resolveFilterType(column) === 'boolean' && !getFilterConfig(column)?.filterOptions?.length) {
+        return [{ label: 'Evet', value: 1 }, { label: 'Hayır', value: 0 }];
+    }
+
+    return getFilterOptions(column);
+};
+
 const initFilters = (): Record<string, DataTableFilter> => {
     const filterObj: Record<string, DataTableFilter> = {};
     props.columns.forEach((col) => {
@@ -193,7 +268,7 @@ const initFilters = (): Record<string, DataTableFilter> => {
                     constraints: [
                         {
                             value: null,
-                            matchMode: getDefaultMatchMode(col.dataType, filterConfig),
+                            matchMode: getDefaultMatchMode(col, filterConfig),
                         },
                     ],
                 } as DataTableFilter;
@@ -204,19 +279,23 @@ const initFilters = (): Record<string, DataTableFilter> => {
     return filterObj;
 };
 
-const getDefaultMatchMode = (dataType?: string, filter?: ColumnFilterConfig | null) => {
-    if (filter?.filterType === 'multi-select') {
-        return FilterMatchMode.IN;
+const getDefaultMatchMode = (column: ColumnDef, filter?: ColumnFilterConfig | null) => {
+    if (filter?.filterMatchMode) {
+        return filter.filterMatchMode;
     }
-    switch (dataType) {
-        case 'numeric':
-            return FilterMatchMode.EQUALS;
-        case 'date':
-            return FilterMatchMode.DATE_IS;
+
+    switch (resolveFilterType(column)) {
+        case 'lookup':
+        case 'select':
         case 'boolean':
             return FilterMatchMode.EQUALS;
+        case 'lookup-multiple':
         case 'multi-select':
             return FilterMatchMode.IN;
+        case 'date-range':
+            return FilterMatchMode.BETWEEN;
+        case 'date':
+            return FilterMatchMode.DATE_IS;
         default:
             return FilterMatchMode.CONTAINS;
     }
@@ -271,6 +350,29 @@ const isConstraintValueEmpty = (value: unknown): boolean => {
     return false;
 };
 
+const formatDateValue = (value: unknown): unknown => {
+    if (value instanceof Date) {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
+    }
+
+    if (typeof value === 'string' && value.includes('T')) {
+        const date = new Date(value);
+        if (!Number.isNaN(date.getTime())) {
+            return formatDateValue(date);
+        }
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => formatDateValue(item));
+    }
+
+    return value;
+};
+
 const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
     const cleaned: Record<string, DataTableFilter> = {};
 
@@ -285,43 +387,15 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
         });
 
         if (validConstraints.length > 0) {
-            const column = props.columns.find((col) => col.field === field);
-            if (column?.dataType === 'date') {
-                const processedConstraints = validConstraints.map((constraint: any) => {
-                    if (constraint.value instanceof Date) {
-                        const year = constraint.value.getFullYear();
-                        const month = String(constraint.value.getMonth() + 1).padStart(2, '0');
-                        const day = String(constraint.value.getDate()).padStart(2, '0');
-                        return {
-                            ...constraint,
-                            value: `${year}-${month}-${day}`,
-                        };
-                    }
+            const processedConstraints = validConstraints.map((constraint: FilterConstraint) => ({
+                value: formatDateValue(constraint.value),
+                matchMode: constraint.matchMode,
+            }));
 
-                    if (typeof constraint.value === 'string' && constraint.value.includes('T')) {
-                        const date = new Date(constraint.value);
-                        const year = date.getFullYear();
-                        const month = String(date.getMonth() + 1).padStart(2, '0');
-                        const day = String(date.getDate()).padStart(2, '0');
-                        return {
-                            ...constraint,
-                            value: `${year}-${month}-${day}`,
-                        };
-                    }
-
-                    return constraint;
-                });
-
-                cleaned[field] = {
-                    ...filter,
-                    constraints: processedConstraints,
-                };
-            } else {
-                cleaned[field] = {
-                    ...filter,
-                    constraints: validConstraints,
-                };
-            }
+            cleaned[field] = {
+                ...filter,
+                constraints: processedConstraints,
+            };
         }
     });
 
@@ -389,14 +463,9 @@ const onSort = (event: any) => {
 
 const onFilter = (event: any) => {
     store.patch(props.tableKey, { filters: event.filters, first: 0 });
+    emit('filters-change', event.filters as Record<string, DataTableFilter>);
     fetchData();
 };
-
-const onSearchInput = useDebounceFn((event: Event) => {
-    const value = (event.target as HTMLInputElement).value;
-    store.patch(props.tableKey, { globalFilter: value, first: 0 });
-    fetchData();
-}, 300);
 
 watch(visibleColumns, (newVal) => {
     try {
@@ -458,7 +527,7 @@ const clearFilters = () => {
                     constraints: [
                         {
                             value: null,
-                            matchMode: getDefaultMatchMode(col.dataType, filterConfig),
+                            matchMode: getDefaultMatchMode(col, filterConfig),
                         },
                     ],
                 } as DataTableFilter;
@@ -472,8 +541,92 @@ const clearFilters = () => {
         globalFilter: undefined,
         first: 0,
     });
-    searchValue.value = '';
     fetchData();
+};
+
+const clearSingleFilter = (field: string): void => {
+    const column = props.columns.find((col) => col.field === field);
+    if (!column || column.filter === false) {
+        return;
+    }
+
+    const filterConfig = getFilterConfig(column);
+    const nextFilters = { ...(filters.value as Record<string, DataTableFilter>) };
+    nextFilters[field] = {
+        operator: filterConfig?.operator || 'and',
+        constraints: [
+            {
+                value: null,
+                matchMode: getDefaultMatchMode(column, filterConfig),
+            },
+        ],
+    };
+
+    filters.value = nextFilters as any;
+    store.patch(props.tableKey, {
+        filters: nextFilters,
+        first: 0,
+    });
+    fetchData();
+};
+
+const onLookupSelectionMeta = (filterModel: FilterConstraint, options: LookupOption[]): void => {
+    if (Array.isArray(filterModel.value)) {
+        filterModel.displayValue = options.map((option) => option.label);
+        return;
+    }
+
+    filterModel.displayValue = options[0]?.label ?? null;
+};
+
+const formatFilterDisplayValue = (constraint: FilterConstraint): string => {
+    const value = constraint.displayValue ?? constraint.value;
+
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item)).join(', ');
+    }
+
+    if (value instanceof Date) {
+        return value.toLocaleDateString('tr-TR');
+    }
+
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+
+    return String(value);
+};
+
+const activeFilterRows = computed(() => {
+    const rows: Array<{ key: string; field: string; label: string; value: string }> = [];
+
+    Object.entries(filters.value as Record<string, DataTableFilter>).forEach(([field, filter]) => {
+        if (!filter?.constraints) {
+            return;
+        }
+
+        const column = props.columns.find((item) => item.field === field);
+        const label = column?.header ?? field;
+
+        filter.constraints.forEach((constraint, index) => {
+            if (isConstraintValueEmpty(constraint.value)) {
+                return;
+            }
+
+            rows.push({
+                key: `${field}-${index}`,
+                field,
+                label,
+                value: formatFilterDisplayValue(constraint as FilterConstraint),
+            });
+        });
+    });
+
+    return rows;
+});
+
+const toggleActiveFiltersPopover = (event: Event): void => {
+    activeFiltersPopoverRef.value?.toggle(event);
 };
 
 const onRowToggle = (data: unknown) => {

@@ -3,7 +3,7 @@
         :totalRecords="tableState?.total" :loading="tableState?.loading" :first="tableState?.first"
         :sortField="tableState?.sortField" :sortOrder="tableState?.sortOrder" v-model:filters="filters"
         filterDisplay="menu" :globalFilterFields="globalFilterFields" removableSort @page="onPage" @sort="onSort"
-        @filter="onFilter" @operator-change="onOperatorChange" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
+        @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
         size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
         v-model:selection="selectedRows" :selectionMode="selectionMode">
@@ -44,7 +44,7 @@
         <Column v-if="selectionMode" :selectionMode="selectionMode" :exportable="false" headerStyle="width: 3rem"
             style="width: 3rem" />
         <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
-        <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :header="col.header"
+        <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :filterField="col.filterField ?? col.field" :header="col.header"
             :sortable="col.sortable !== false" :dataType="resolveColumnDataType(col)"
             :showFilterMatchModes="col.filter === false ? false : !(getFilterConfig(col)?.showMatchModes === false)"
             :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)">
@@ -67,7 +67,7 @@
                     :filters="getFilterConfig(col)?.lookupParams"
                     :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
+                    @selection-meta="(options: LookupOption[]) => onLookupSelectionMeta(col, filterModel, options)" class="w-full" />
 
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"
@@ -124,7 +124,7 @@
                         <div class="truncate text-sm font-medium">{{ row.value }}</div>
                     </div>
                     <Button type="button" icon="pi pi-times" text rounded severity="danger" size="small"
-                        :aria-label="`${row.label} filtresini kaldır`" @click="clearSingleFilter(row.field)" />
+                        :aria-label="`${row.label} filtresini kaldır`" @click="clearSingleFilterConstraint(row.field, row.constraintIndex)" />
                 </div>
             </div>
 
@@ -142,7 +142,6 @@ import type { ColumnDef, ColumnFilterConfig, DataTableFilter, FilterConstraint }
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import { FilterMatchMode } from '@primevue/core/api';
-import { useDebounceFn } from '@vueuse/core';
 import {
     Button,
     Column,
@@ -156,7 +155,7 @@ import {
     Skeleton,
 } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, defineComponent, h, onMounted, provide, ref, watch, type VNode } from 'vue';
+import { computed, defineComponent, h, onMounted, onUnmounted, provide, ref, watch, type VNode } from 'vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -178,11 +177,11 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
     (e: 'row-toggle', data: unknown): void;
     (e: 'selection-change', rows: unknown[]): void;
+    (e: 'filter-change', filters: Record<string, DataTableFilter>): void;
 }>();
 
 const store = useDatatableStore();
 const toast = useToast();
-const searchValue = ref('');
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
@@ -230,6 +229,10 @@ const getFilterConfig = (column: ColumnDef): ColumnFilterConfig | null => {
     return typeof column.filter === 'object' ? column.filter : null;
 };
 
+const resolveFilterKey = (column: ColumnDef): string => {
+    return column.filterField ?? column.field;
+};
+
 const resolveFilterType = (column: ColumnDef): NonNullable<ColumnFilterConfig['filterType']> => {
     const filterConfig = getFilterConfig(column);
     if (filterConfig?.filterType) {
@@ -247,8 +250,8 @@ const resolveFilterType = (column: ColumnDef): NonNullable<ColumnFilterConfig['f
     return 'text';
 };
 
-const getFilterOptions = (column: ColumnDef): Array<Record<string, unknown>> => {
-    return (getFilterConfig(column)?.filterOptions ?? []) as Array<Record<string, unknown>>;
+const getFilterOptions = (column: ColumnDef) => {
+    return getFilterConfig(column)?.filterOptions ?? [];
 };
 
 const getFilterOptionLabel = (column: ColumnDef): string => {
@@ -265,7 +268,7 @@ const resolveFilterPlaceholder = (column: ColumnDef, fallback = 'Seçiniz'): str
     return filterConfig?.filterPlaceholder ?? filterConfig?.placeholder ?? fallback;
 };
 
-const resolveSelectOptions = (column: ColumnDef): Array<Record<string, unknown>> => {
+const resolveSelectOptions = (column: ColumnDef) => {
     if (resolveFilterType(column) === 'boolean' && !getFilterConfig(column)?.filterOptions?.length) {
         return [{ label: 'Evet', value: 1 }, { label: 'Hayır', value: 0 }];
     }
@@ -287,11 +290,12 @@ const initFilters = (): Record<string, DataTableFilter> => {
     props.columns.forEach((col) => {
         if (col.filter !== false) {
             const filterConfig = getFilterConfig(col);
+            const filterKey = resolveFilterKey(col);
 
             if (col.defaultFilter) {
-                filterObj[col.field] = col.defaultFilter as DataTableFilter;
+                filterObj[filterKey] = col.defaultFilter as DataTableFilter;
             } else {
-                filterObj[col.field] = {
+                filterObj[filterKey] = {
                     operator: filterConfig?.operator || 'and',
                     constraints: [
                         {
@@ -500,6 +504,7 @@ const onFilter = (event: any) => {
     const currentFilters = (tableState.value?.filters ?? {}) as Record<string, DataTableFilter>;
 
     store.patch(props.tableKey, { filters: nextFilters, first: 0 });
+    emit('filter-change', nextFilters);
 
     const nextCleanedFilters = cleanFilters(nextFilters);
     const currentCleanedFilters = cleanFilters(currentFilters);
@@ -511,40 +516,29 @@ const onFilter = (event: any) => {
     fetchData();
 };
 
-const onOperatorChange = (): void => {
-    const tableElement = (dataTableRef.value as any)?.$el as HTMLElement | undefined;
-    if (!tableElement) {
+const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
+    const target = event.target as HTMLElement | null;
+    if (!target) {
         return;
     }
 
-    const expandedFilterButton = tableElement.querySelector<HTMLButtonElement>(
-        '.p-datatable-column-filter-button[aria-expanded="true"]',
+    const isPrimeOverlayInteraction = Boolean(
+        target.closest('[data-pc-section="overlay"], [data-pc-section="panel"]'),
     );
-
-    if (!expandedFilterButton) {
+    if (!isPrimeOverlayInteraction) {
         return;
     }
 
-    // PrimeVue operator select click can be detected as outside click; reopen immediately.
-    setTimeout(() => {
-        if (!expandedFilterButton.isConnected) {
-            return;
-        }
+    const tableElement = (dataTableRef.value as any)?.$el as HTMLElement | undefined;
+    const filterOverlay = tableElement?.querySelector<HTMLElement>('.p-datatable-filter-overlay');
+    if (!filterOverlay) {
+        return;
+    }
 
-        const stillExpanded = tableElement.querySelector('.p-datatable-column-filter-button[aria-expanded="true"]');
-        if (stillExpanded) {
-            return;
-        }
-
-        expandedFilterButton.click();
-    }, 0);
+    // Mark as self interaction before PrimeVue outside-click handler runs.
+    filterOverlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    filterOverlay.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 };
-
-const onSearchInput = useDebounceFn((event: Event) => {
-    const value = (event.target as HTMLInputElement).value;
-    store.patch(props.tableKey, { globalFilter: value, first: 0 });
-    fetchData();
-}, 300);
 
 watch(visibleColumns, (newVal) => {
     try {
@@ -555,6 +549,9 @@ watch(visibleColumns, (newVal) => {
 }, { deep: true });
 
 onMounted(() => {
+    document.addEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
+    document.addEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
+
     const initialFilters = initFilters();
 
     store.init(props.tableKey, {
@@ -581,6 +578,11 @@ onMounted(() => {
     fetchData();
 });
 
+onUnmounted(() => {
+    document.removeEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
+    document.removeEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
+});
+
 const refreshData = () => {
     fetchData();
 };
@@ -592,16 +594,17 @@ const clearFilters = () => {
     props.columns.forEach((col) => {
         if (col.filter !== false) {
             const filterConfig = getFilterConfig(col);
+            const filterKey = resolveFilterKey(col);
 
             if (col.defaultFilter) {
-                clearedFilters[col.field] = col.defaultFilter as DataTableFilter;
+                clearedFilters[filterKey] = col.defaultFilter as DataTableFilter;
             } else if (filterConfig?.constraints?.length) {
-                clearedFilters[col.field] = {
+                clearedFilters[filterKey] = {
                     operator: filterConfig.operator || 'and',
                     constraints: filterConfig.constraints,
                 } as DataTableFilter;
             } else {
-                clearedFilters[col.field] = {
+                clearedFilters[filterKey] = {
                     operator: filterConfig?.operator || 'and',
                     constraints: [
                         {
@@ -620,13 +623,13 @@ const clearFilters = () => {
         globalFilter: undefined,
         first: 0,
     });
-    searchValue.value = '';
+    emit('filter-change', clearedFilters);
     fetchData();
 };
 
 const clearSingleFilter = (field: string): void => {
     const nextFilters = { ...(filters.value as Record<string, DataTableFilter>) };
-    const column = props.columns.find((col) => col.field === field);
+    const column = props.columns.find((col) => resolveFilterKey(col) === field);
     const filterConfig = column ? getFilterConfig(column) : null;
 
     if (column?.defaultFilter) {
@@ -634,7 +637,7 @@ const clearSingleFilter = (field: string): void => {
     } else {
         nextFilters[field] = {
             operator: filterConfig?.operator || 'and',
-            constraints: [{ value: null, matchMode: getDefaultMatchMode(column ?? { field: '', header: '' }, filterConfig) }],
+            constraints: [{ value: null, matchMode: getDefaultMatchMode(column ?? { field: '', header: '' }, filterConfig) as FilterConstraint['matchMode'] }],
         };
     }
 
@@ -643,17 +646,76 @@ const clearSingleFilter = (field: string): void => {
         filters: nextFilters,
         first: 0,
     });
+    emit('filter-change', nextFilters);
     fetchData();
 };
 
-const onLookupSelectionMeta = (filterModel: FilterConstraint, options: LookupOption[]): void => {
-    const isMultiple = Array.isArray(filterModel.value);
-    if (isMultiple) {
-        filterModel.displayValue = options.map((option) => option.label);
+const clearSingleFilterConstraint = (field: string, constraintIndex: number): void => {
+    const current = (filters.value as Record<string, DataTableFilter>)[field];
+    if (!current?.constraints?.length) {
+        clearSingleFilter(field);
         return;
     }
 
-    filterModel.displayValue = options[0]?.label ?? null;
+    const nextConstraints = current.constraints
+        .filter((_, index) => index !== constraintIndex)
+        .filter((constraint) => !isConstraintValueEmpty(constraint.value));
+
+    if (nextConstraints.length === 0) {
+        clearSingleFilter(field);
+        return;
+    }
+
+    const nextFilters = {
+        ...(filters.value as Record<string, DataTableFilter>),
+        [field]: {
+            operator: current.operator ?? 'and',
+            constraints: nextConstraints,
+        } as DataTableFilter,
+    };
+
+    filters.value = nextFilters as any;
+    store.patch(props.tableKey, {
+        filters: nextFilters,
+        first: 0,
+    });
+    emit('filter-change', nextFilters);
+    fetchData();
+};
+
+const resolveLookupDisplayLabel = (column: ColumnDef, option: LookupOption): string => {
+    const filterConfig = getFilterConfig(column);
+    const labelKey = filterConfig?.lookupOptionLabel;
+    if (!labelKey) {
+        return option.label;
+    }
+
+    if (labelKey === 'label') {
+        return option.label;
+    }
+
+    const metaValue = option.meta?.[labelKey];
+    if (metaValue !== undefined && metaValue !== null) {
+        return String(metaValue);
+    }
+
+    return option.label;
+};
+
+const onLookupSelectionMeta = (
+    column: ColumnDef,
+    filterModel: { value: unknown; displayValue?: string | string[] | null },
+    options: LookupOption[],
+): void => {
+    const isMultiple = Array.isArray(filterModel.value);
+    const resolvedLabels = options.map((option) => resolveLookupDisplayLabel(column, option));
+
+    if (isMultiple) {
+        filterModel.displayValue = resolvedLabels;
+        return;
+    }
+
+    filterModel.displayValue = resolvedLabels[0] ?? null;
 };
 
 const formatFilterValue = (constraint: FilterConstraint): string => {
@@ -679,15 +741,15 @@ const formatFilterValue = (constraint: FilterConstraint): string => {
 };
 
 const activeFilterRows = computed(() => {
-    const rows: Array<{ key: string; field: string; label: string; value: string }> = [];
+    const rows: Array<{ key: string; field: string; label: string; value: string; constraintIndex: number }> = [];
+    const fieldLabelMap = new Map(props.columns.map((column) => [resolveFilterKey(column), column.header]));
 
     Object.entries(filters.value as Record<string, DataTableFilter>).forEach(([field, filter]) => {
         if (!filter?.constraints?.length) {
             return;
         }
 
-        const column = props.columns.find((item) => item.field === field);
-        const label = column?.header ?? field;
+        const label = fieldLabelMap.get(field) ?? field;
 
         filter.constraints.forEach((constraint, index) => {
             if (isConstraintValueEmpty(constraint.value)) {
@@ -699,6 +761,7 @@ const activeFilterRows = computed(() => {
                 field,
                 label,
                 value: formatFilterValue(constraint as FilterConstraint),
+                constraintIndex: index,
             });
         });
     });

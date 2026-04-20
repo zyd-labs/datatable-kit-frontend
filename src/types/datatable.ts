@@ -21,6 +21,7 @@ export type MatchMode =
 export interface FilterConstraint {
     value: unknown;
     matchMode: MatchMode;
+    displayValue?: string | string[] | null;
 }
 
 export interface DataTableFilter {
@@ -53,8 +54,16 @@ export interface ColumnFilterOption {
 }
 
 export interface ColumnFilterConfig {
-    filterType?: 'select' | 'multi-select';
+    filterType?: 'text' | 'select' | 'multi-select' | 'lookup' | 'lookup-multiple' | 'date' | 'date-range' | 'boolean';
+    filterMatchMode?: MatchMode;
     filterOptions?: ColumnFilterOption[];
+    filterOptionLabel?: string;
+    filterOptionValue?: string;
+    lookupEndpoint?: string;
+    lookupParams?: Record<string, unknown>;
+    lookupOptionLabel?: string;
+    lookupOptionValue?: string;
+    filterPlaceholder?: string;
     operator?: 'and' | 'or';
     showMatchModes?: boolean;
     showOperator?: boolean;
@@ -65,6 +74,7 @@ export interface ColumnFilterConfig {
 
 export interface ColumnDef {
     field: string;
+    filterField?: string;
     header: string;
     sortable?: boolean;
     filter?: boolean | ColumnFilterConfig;

@@ -47,8 +47,17 @@
         <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
         <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :header="col.header"
             :sortable="col.sortable !== false" :dataType="col.dataType || 'text'"
-            :showFilterMatchModes="col.filter === false ? false : !(getFilterConfig(col)?.showMatchModes === false)"
-            :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)">
+            :showFilterMatchModes="col.filter === false
+                ? false
+                : (resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'
+                    ? false
+                    : !(getFilterConfig(col)?.showMatchModes === false))"
+            :showFilterOperator="col.filter === false
+                ? false
+                : (resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'
+                    ? false
+                    : !(getFilterConfig(col)?.showOperator === false))"
+            :showAddButton="false" :maxConstraints="1">
             <template #body="slotProps" v-if="col.render">
                 <component v-if="isComponent(col.render)" :is="col.render" :data="slotProps.data" />
                 <template v-else-if="typeof col.render === 'function'">
@@ -57,34 +66,34 @@
             </template>
 
             <template #filter="{ filterModel }" v-if="col.filter !== false">
-                <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
-                    :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
-                    :optionValue="getFilterOptionValue(col)"
-                    :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-                <div v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'" class="w-full"
-                    @mousedown.stop @click.stop>
-                    <LookupSelect v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
+                <div class="w-full" @mousedown.stop @click.stop>
+                    <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
+                        :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
+                        :optionValue="getFilterOptionValue(col)"
+                        :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
+                        :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" appendTo="self" />
+                    <LookupSelect v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
+                        v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
                         :multiple="resolveFilterType(col) === 'lookup-multiple'"
                         :filters="getFilterConfig(col)?.lookupParams"
                         :fetcher="lookupFetcher"
                         :placeholder="resolveFilterPlaceholder(col)"
                         :disabled="!getFilterConfig(col)?.lookupEndpoint"
                         @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
+                    <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
+                        v-model="filterModel.value" :options="resolveSelectOptions(col)"
+                        :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
+                        :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" appendTo="self" />
+                    <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
+                        selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"
+                        size="small" class="w-full" appendTo="self" />
+                    <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value"
+                        :placeholder="resolveFilterPlaceholder(col, 'Değer')" size="small" class="w-full" />
+                    <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
+                        :placeholder="resolveFilterPlaceholder(col, 'Tarih seç')" size="small" class="w-full" appendTo="self" />
+                    <InputText v-else v-model="filterModel.value" type="text"
+                        :placeholder="resolveFilterPlaceholder(col, 'Ara...')" size="small" class="w-full" />
                 </div>
-                <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
-                    v-model="filterModel.value" :options="resolveSelectOptions(col)"
-                    :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-                <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
-                    selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"
-                    size="small" class="w-full" />
-                <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value"
-                    :placeholder="resolveFilterPlaceholder(col, 'Değer')" size="small" class="w-full" />
-                <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
-                    :placeholder="resolveFilterPlaceholder(col, 'Tarih seç')" size="small" class="w-full" />
-                <InputText v-else v-model="filterModel.value" type="text"
-                    :placeholder="resolveFilterPlaceholder(col, 'Ara...')" size="small" class="w-full" />
             </template>
         </Column>
 
@@ -438,6 +447,37 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
     return cleaned;
 };
 
+const normalizeIncomingFilters = (rawFilters: Record<string, any>): Record<string, DataTableFilter> => {
+    const normalized: Record<string, DataTableFilter> = {};
+
+    props.columns.forEach((column) => {
+        if (column.filter === false) {
+            return;
+        }
+
+        const filterConfig = getFilterConfig(column);
+        const incoming = rawFilters?.[column.field];
+        const incomingConstraints = normalizeFilterConstraints(incoming);
+        const constraints = incomingConstraints.length > 0
+            ? incomingConstraints.map((constraint) => ({
+                value: constraint.value ?? null,
+                matchMode: (constraint.matchMode ?? getDefaultMatchMode(column, filterConfig)) as FilterConstraint['matchMode'],
+                displayValue: constraint.displayValue,
+            }))
+            : [{
+                value: null,
+                matchMode: getDefaultMatchMode(column, filterConfig),
+            }];
+
+        normalized[column.field] = {
+            operator: (incoming?.operator ?? filterConfig?.operator ?? 'and') as 'and' | 'or',
+            constraints,
+        };
+    });
+
+    return normalized;
+};
+
 const fetchData = async () => {
     if (!tableState.value) return;
 
@@ -498,8 +538,10 @@ const onSort = (event: any) => {
 };
 
 const onFilter = (event: any) => {
-    store.patch(props.tableKey, { filters: event.filters, first: 0 });
-    emit('filters-change', event.filters as Record<string, DataTableFilter>);
+    const normalizedFilters = normalizeIncomingFilters(event.filters as Record<string, any>);
+    filters.value = normalizedFilters as any;
+    store.patch(props.tableKey, { filters: normalizedFilters, first: 0 });
+    emit('filters-change', normalizedFilters);
     fetchData();
 };
 

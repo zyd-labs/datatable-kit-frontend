@@ -67,9 +67,9 @@
                     :multiple="resolveFilterType(col) === 'lookup-multiple'"
                     :filters="getFilterConfig(col)?.lookupParams"
                     :fetcher="lookupFetcher"
+                    appendTo="self"
                     :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @update:modelValue="filterCallback()"
                     @selection-meta="(options) => onLookupSelectionMeta(filterModel, options)" class="w-full" />
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"

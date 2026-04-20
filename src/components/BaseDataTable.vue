@@ -353,6 +353,37 @@ const isConstraintValueEmpty = (value: unknown): boolean => {
     return false;
 };
 
+const normalizeFilterConstraints = (filter: unknown): FilterConstraint[] => {
+    if (!filter || typeof filter !== 'object') {
+        return [];
+    }
+
+    const typedFilter = filter as {
+        constraints?: Array<{ value: unknown; matchMode?: string; displayValue?: unknown }>;
+        value?: unknown;
+        matchMode?: string;
+        displayValue?: unknown;
+    };
+
+    if (Array.isArray(typedFilter.constraints)) {
+        return typedFilter.constraints.map((constraint) => ({
+            value: constraint.value,
+            matchMode: (constraint.matchMode ?? FilterMatchMode.CONTAINS) as FilterConstraint['matchMode'],
+            displayValue: constraint.displayValue,
+        }));
+    }
+
+    if ('value' in typedFilter) {
+        return [{
+            value: typedFilter.value,
+            matchMode: (typedFilter.matchMode ?? FilterMatchMode.CONTAINS) as FilterConstraint['matchMode'],
+            displayValue: typedFilter.displayValue,
+        }];
+    }
+
+    return [];
+};
+
 const formatDateValue = (value: unknown): unknown => {
     if (value instanceof Date) {
         const year = value.getFullYear();
@@ -383,9 +414,10 @@ const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
         if (field === 'global') return;
 
         const filter = rawFilters[field];
-        if (!filter || !filter.constraints) return;
+        const constraints = normalizeFilterConstraints(filter);
+        if (constraints.length === 0) return;
 
-        const validConstraints = filter.constraints.filter((constraint: any) => {
+        const validConstraints = constraints.filter((constraint) => {
             return !isConstraintValueEmpty(constraint.value);
         });
 
@@ -610,8 +642,8 @@ const activeFilterRows = computed(() => {
 
         const column = props.columns.find((item) => item.field === field);
         const label = column?.header ?? field;
-
-        filter.constraints.forEach((constraint, index) => {
+        const constraints = normalizeFilterConstraints(filter);
+        constraints.forEach((constraint, index) => {
             if (isConstraintValueEmpty(constraint.value)) {
                 return;
             }

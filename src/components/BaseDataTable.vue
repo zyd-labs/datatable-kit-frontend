@@ -1,9 +1,9 @@
 <template>
-    <DataTable :value="tableState?.data" :lazy="true" :paginator="true" :rows="tableState?.rows"
+    <DataTable ref="dataTableRef" :value="tableState?.data" :lazy="true" :paginator="true" :rows="tableState?.rows"
         :totalRecords="tableState?.total" :loading="tableState?.loading" :first="tableState?.first"
         :sortField="tableState?.sortField" :sortOrder="tableState?.sortOrder" v-model:filters="filters"
         filterDisplay="menu" :globalFilterFields="globalFilterFields" removableSort @page="onPage" @sort="onSort"
-        @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
+        @filter="onFilter" @operator-change="onOperatorChange" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
         size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
         v-model:selection="selectedRows" :selectionMode="selectionMode">
@@ -187,6 +187,7 @@ const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== f
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
 const activeFiltersPopoverRef = ref();
+const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null);
 
 watch(
     selectedRows,
@@ -508,6 +509,35 @@ const onFilter = (event: any) => {
     }
 
     fetchData();
+};
+
+const onOperatorChange = (): void => {
+    const tableElement = (dataTableRef.value as any)?.$el as HTMLElement | undefined;
+    if (!tableElement) {
+        return;
+    }
+
+    const expandedFilterButton = tableElement.querySelector<HTMLButtonElement>(
+        '.p-datatable-column-filter-button[aria-expanded="true"]',
+    );
+
+    if (!expandedFilterButton) {
+        return;
+    }
+
+    // PrimeVue operator select click can be detected as outside click; reopen immediately.
+    setTimeout(() => {
+        if (!expandedFilterButton.isConnected) {
+            return;
+        }
+
+        const stillExpanded = tableElement.querySelector('.p-datatable-column-filter-button[aria-expanded="true"]');
+        if (stillExpanded) {
+            return;
+        }
+
+        expandedFilterButton.click();
+    }, 0);
 };
 
 const onSearchInput = useDebounceFn((event: Event) => {

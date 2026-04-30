@@ -2,6 +2,10 @@
 
 PrimeVue 4 + Tailwind 4 tabanlı projeler için yeniden kullanılabilir DataTable paketi. Backend tarafında `zyd-labs/laravel-datatable-kit` ile aynı sözleşmeyi takip eder ve `{ data, total }` yapısında yanıt bekler.
 
+## Dokümantasyon
+
+- Detaylı kullanım dokümanı: [`docs/KULLANIM.md`](docs/KULLANIM.md)
+
 ## Özellikler
 
 - `BaseDataTable` bileşeni: Sunucu tarafı pagination/sort/filter için hazır şablon.

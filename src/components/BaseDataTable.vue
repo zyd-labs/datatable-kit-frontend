@@ -5,7 +5,7 @@
         filterDisplay="menu" :globalFilterFields="globalFilterFields" removableSort @page="onPage" @sort="onSort"
         @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
-        size="small" class="responsive-datatable" showGridlines :expandedRows="expandedRows" @row-toggle="onRowToggle"
+        size="small" class="responsive-datatable" showGridlines v-model:expandedRows="expandedRowsModel" @row-toggle="onRowToggle"
         v-model:selection="selectedRows" :selectionMode="selectionMode">
         <template #header>
             <div class="flex flex-col gap-4">
@@ -15,7 +15,8 @@
 
                 <div class="flex flex-row flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2 shrink-0">
-                        <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData" v-tooltip="'Yenile'" />
+                        <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
+                            v-tooltip="'Yenile'" />
                         <Button type="button" icon="pi pi-filter-slash" severity="secondary" size="small"
                             @click="toggleActiveFiltersPopover" v-tooltip="'Filtreleri temizle'" />
                         <Button icon="pi pi-file-excel" severity="success" size="small" :loading="exporting"
@@ -44,8 +45,9 @@
         <Column v-if="selectionMode" :selectionMode="selectionMode" :exportable="false" headerStyle="width: 3rem"
             style="width: 3rem" />
         <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
-        <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field" :filterField="col.filterField ?? col.field" :header="col.header"
-            :sortable="col.sortable !== false" :dataType="resolveColumnDataType(col)"
+        <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field"
+            :filterField="col.filterField ?? col.field" :header="col.header" :sortable="col.sortable !== false"
+            :dataType="resolveColumnDataType(col)"
             :showFilterMatchModes="col.filter === false ? false : !(getFilterConfig(col)?.showMatchModes === false)"
             :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)">
             <template #body="slotProps" v-if="col.render">
@@ -58,33 +60,36 @@
             <template #filter="{ filterModel }" v-if="col.filter !== false">
                 <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
                     :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
-                    :optionValue="getFilterOptionValue(col)" :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3"
-                    filter :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                    :optionValue="getFilterOptionValue(col)"
+                    :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
+                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
 
-                <LookupSelect v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
+                <LookupSelect
+                    v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
                     v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
                     :multiple="resolveFilterType(col) === 'lookup-multiple'"
-                    :filters="getFilterConfig(col)?.lookupParams"
-                    :placeholder="resolveFilterPlaceholder(col)"
+                    :filters="getFilterConfig(col)?.lookupParams" :placeholder="resolveFilterPlaceholder(col)"
                     :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @selection-meta="(options: LookupOption[]) => onLookupSelectionMeta(col, filterModel, options)" class="w-full" />
+                    @selection-meta="(options: LookupOption[]) => onLookupSelectionMeta(col, filterModel, options)"
+                    class="w-full" />
 
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"
                     :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
                     :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
 
-                <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value" selectionMode="range"
-                    dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
+                    selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"
+                    size="small" class="w-full" />
 
-                <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value" dateFormat="dd/mm/yy"
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value"
+                    dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
 
                 <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value"
                     :placeholder="resolveFilterPlaceholder(col, 'Değer')" size="small" class="w-full" />
 
-                <InputText v-else v-model="filterModel.value" type="text" :placeholder="resolveFilterPlaceholder(col, 'Ara...')"
-                    size="small" class="w-full" />
+                <InputText v-else v-model="filterModel.value" type="text"
+                    :placeholder="resolveFilterPlaceholder(col, 'Ara...')" size="small" class="w-full" />
             </template>
         </Column>
 
@@ -124,11 +129,13 @@
                         <div class="truncate text-sm font-medium">{{ row.value }}</div>
                     </div>
                     <Button type="button" icon="pi pi-times" text rounded severity="danger" size="small"
-                        :aria-label="`${row.label} filtresini kaldır`" @click="clearSingleFilterConstraint(row.field, row.constraintIndex)" />
+                        :aria-label="`${row.label} filtresini kaldır`"
+                        @click="clearSingleFilterConstraint(row.field, row.constraintIndex)" />
                 </div>
             </div>
 
-            <div v-else class="rounded-md border border-dashed border-surface-300 px-3 py-4 text-center text-sm text-surface-500 dark:border-surface-700">
+            <div v-else
+                class="rounded-md border border-dashed border-surface-300 px-3 py-4 text-center text-sm text-surface-500 dark:border-surface-700">
                 Aktif filtre bulunmuyor.
             </div>
         </div>
@@ -178,7 +185,23 @@ const emit = defineEmits<{
     (e: 'row-toggle', data: unknown): void;
     (e: 'selection-change', rows: unknown[]): void;
     (e: 'filter-change', filters: Record<string, DataTableFilter>): void;
+    (e: 'update:expandedRows', value: Record<number, boolean>): void;
 }>();
+
+const expandedRowsFallback = ref<Record<number, boolean>>({});
+
+const expandedRowsModel = computed({
+    get(): Record<number, boolean> {
+        return props.expandedRows ?? expandedRowsFallback.value;
+    },
+    set(value: Record<number, boolean>) {
+        if (props.expandedRows !== undefined) {
+            emit('update:expandedRows', value);
+        } else {
+            expandedRowsFallback.value = value;
+        }
+    },
+});
 
 const store = useDatatableStore();
 const toast = useToast();

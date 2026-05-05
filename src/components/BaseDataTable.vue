@@ -224,17 +224,6 @@ watch(
     { deep: true },
 );
 
-watch(
-    () => tableState.value?.globalFilter,
-    (newGlobalFilter) => {
-        if (newGlobalFilter === undefined || newGlobalFilter === null) {
-            globalSearchValue.value = '';
-        } else if (globalSearchValue.value !== newGlobalFilter) {
-            globalSearchValue.value = newGlobalFilter;
-        }
-    },
-);
-
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
     if (!state) {
@@ -261,6 +250,21 @@ const tableState = computed(() => {
 });
 
 const visibleColumnsData = computed(() => props.columns.filter((col) => visibleColumns.value.includes(col.field)));
+
+watch(
+    () => tableState.value?.globalFilter,
+    (newGlobalFilter) => {
+        if (!tableState.value) {
+            return;
+        }
+        
+        if (newGlobalFilter === undefined || newGlobalFilter === null) {
+            globalSearchValue.value = '';
+        } else if (globalSearchValue.value !== newGlobalFilter) {
+            globalSearchValue.value = newGlobalFilter;
+        }
+    },
+);
 
 const { fetchData: apiFetch, exportData: apiExport } = useDatatable(props.endpoint);
 

@@ -14,6 +14,9 @@
                 </div>
 
                 <div class="flex flex-row flex-wrap items-center gap-3">
+                    <InputText v-model="globalSearchValue" type="text" placeholder="Genel ara..." size="small"
+                        @input="onGlobalSearchChange" class="w-full sm:w-[15rem] md:flex-1" />
+
                     <div class="flex items-center gap-2 shrink-0">
                         <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
                             v-tooltip="'Yenile'" />
@@ -210,6 +213,8 @@ const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
 const activeFiltersPopoverRef = ref();
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null);
+const globalSearchValue = ref<string>('');
+const globalSearchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 
 watch(
     selectedRows,
@@ -217,6 +222,17 @@ watch(
         emit('selection-change', rows);
     },
     { deep: true },
+);
+
+watch(
+    () => tableState.value?.globalFilter,
+    (newGlobalFilter) => {
+        if (newGlobalFilter === undefined || newGlobalFilter === null) {
+            globalSearchValue.value = '';
+        } else if (globalSearchValue.value !== newGlobalFilter) {
+            globalSearchValue.value = newGlobalFilter;
+        }
+    },
 );
 
 const tableState = computed(() => {
@@ -604,10 +620,34 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
     document.removeEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
+    
+    if (globalSearchDebounceTimer.value) {
+        clearTimeout(globalSearchDebounceTimer.value);
+    }
 });
 
 const refreshData = () => {
     fetchData();
+};
+
+const onGlobalSearchChange = (): void => {
+    // Clear existing debounce timer
+    if (globalSearchDebounceTimer.value) {
+        clearTimeout(globalSearchDebounceTimer.value);
+    }
+
+    // Set new debounce timer (400ms)
+    globalSearchDebounceTimer.value = setTimeout(() => {
+        if (!tableState.value) {
+            return;
+        }
+
+        store.patch(props.tableKey, {
+            globalFilter: globalSearchValue.value || undefined,
+            first: 0,
+        });
+        fetchData();
+    }, 400);
 };
 
 provide('refreshTable', refreshData);

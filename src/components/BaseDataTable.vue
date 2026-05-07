@@ -286,9 +286,7 @@ const readHiddenColumnState = (): string[] => {
 };
 
 const writeHiddenColumnState = (hidden: string[]) => {
-    const currentDefaultVisible = defaultVisibleColumnFields(props.columns);
-    const currentFieldSet = new Set(currentDefaultVisible);
-    const filteredHidden = hidden.filter((field) => currentFieldSet.has(field));
+    const filteredHidden = hidden.filter((field) => typeof field === 'string' && field !== '');
 
     const nextState: ColumnVisibilityState = {
         hidden: filteredHidden,
@@ -730,6 +728,7 @@ watch(
             isSyncingVisibleColumns = false;
         }
 
+        writeHiddenColumnState(hidden);
         syncFilterStateWithColumns(newColumns);
     },
     { deep: true },
@@ -759,6 +758,8 @@ onMounted(() => {
 
     const hidden = readHiddenColumnState();
     columnVisibilityState = { hidden, version: 2 };
+    writeHiddenColumnState(hidden);
+    
     const nextVisible = resolveVisibleColumnsFromHidden(props.columns, hidden);
 
     if (!arraysEqual(nextVisible, visibleColumns.value)) {

@@ -211,19 +211,29 @@ const toast = useToast();
 const storageKey = computed(() => `dt-columns-${props.tableKey}`);
 
 type ColumnVisibilityState = {
-    visible: string[];
-    known: string[];
-};
-
-const visibleColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
-    return columns.filter((column) => column.visible !== false).map((column) => column.field);
+    hidden: string[];
+    version: 2;
 };
 
 const allColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
     return columns.map((column) => column.field);
 };
 
+const defaultVisibleColumnFields = (columns: ColumnDef[]): string[] => {
+    return columns.filter((column) => column.visible !== false).map((column) => column.field);
+};
+
 const currentColumnFields = (): string[] => allColumnFieldsFromColumns(props.columns);
+
+const resolveVisibleColumnsFromHidden = (columns: ColumnDef[], hidden: string[]): string[] => {
+    const hiddenSet = new Set(hidden);
+    return defaultVisibleColumnFields(columns).filter((field) => !hiddenSet.has(field));
+};
+
+const resolveHiddenFromVisible = (columns: ColumnDef[], visible: string[]): string[] => {
+    const visibleSet = new Set(visible);
+    return defaultVisibleColumnFields(columns).filter((field) => !visibleSet.has(field));
+};
 
 const arraysEqual = (a: string[], b: string[]): boolean => {
     if (a.length !== b.length) {
@@ -233,16 +243,12 @@ const arraysEqual = (a: string[], b: string[]): boolean => {
     return a.every((value, index) => value === b[index]);
 };
 
-const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): ColumnVisibilityState => {
-    const currentFields = allColumnFieldsFromColumns(columns);
-    const currentFieldSet = new Set(currentFields);
+const migrateOldVisibilityFormat = (raw: unknown, columns: ColumnDef[]): string[] => {
+    const defaultVisible = defaultVisibleColumnFields(columns);
 
     if (Array.isArray(raw) && raw.every((item) => typeof item === 'string')) {
-        const visible = raw.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
-        return {
-            visible,
-            known: currentFields,
-        };
+        const legacyVisible = raw.filter((item): item is string => typeof item === 'string');
+        return defaultVisible.filter((field) => !legacyVisible.includes(field));
     }
 
     if (typeof raw === 'object' && raw !== null) {
@@ -250,61 +256,46 @@ const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): Col
         const visible = Array.isArray(rawState.visible)
             ? rawState.visible.filter((item): item is string => typeof item === 'string')
             : [];
-        const known = Array.isArray(rawState.known)
-            ? rawState.known.filter((item): item is string => typeof item === 'string')
-            : [];
-
-        const filteredVisible = visible.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
-
-        return {
-            visible: filteredVisible,
-            known: known,
-        };
+        return defaultVisible.filter((field) => !visible.includes(field));
     }
 
-    return {
-        visible: visibleColumnFieldsFromColumns(columns),
-        known: currentFields,
-    };
+    return [];
 };
 
 let columnVisibilityState: ColumnVisibilityState | null = null;
 let isSyncingVisibleColumns = false;
 
-const readColumnVisibilityState = (): ColumnVisibilityState => {
+const readHiddenColumnState = (): string[] => {
     try {
         const rawValue = localStorage.getItem(storageKey.value);
         if (!rawValue) {
-            const fields = currentColumnFields();
-            return {
-                visible: visibleColumnFieldsFromColumns(props.columns),
-                known: fields,
-            };
+            return [];
         }
 
-        return normalizeColumnVisibilityState(JSON.parse(rawValue), props.columns);
+        const parsed = JSON.parse(rawValue);
+
+        if (typeof parsed === 'object' && parsed !== null && parsed.version === 2 && Array.isArray(parsed.hidden)) {
+            return parsed.hidden.filter((item): item is string => typeof item === 'string');
+        }
+
+        return migrateOldVisibilityFormat(parsed, props.columns);
     } catch (error) {
         console.warn('localStorage okuma hatası:', error);
-        const fields = currentColumnFields();
-        return {
-            visible: visibleColumnFieldsFromColumns(props.columns),
-            known: fields,
-        };
+        return [];
     }
 };
 
-const writeColumnVisibilityState = (visible: string[], known?: string[]) => {
-    const currentFields = currentColumnFields();
-    const currentFieldSet = new Set(currentFields);
-    const allowedVisible = visible.filter((field) => currentFieldSet.has(field) && props.columns.some((col) => col.field === field && col.visible !== false));
-    const mergedKnown = Array.from(new Set([...(known ?? columnVisibilityState?.known ?? []), ...currentFields]));
+const writeHiddenColumnState = (hidden: string[]) => {
+    const currentDefaultVisible = defaultVisibleColumnFields(props.columns);
+    const currentFieldSet = new Set(currentDefaultVisible);
+    const filteredHidden = hidden.filter((field) => currentFieldSet.has(field));
 
     const nextState: ColumnVisibilityState = {
-        visible: allowedVisible,
-        known: mergedKnown,
+        hidden: filteredHidden,
+        version: 2,
     };
 
-    if (columnVisibilityState && arraysEqual(columnVisibilityState.visible, nextState.visible) && arraysEqual(columnVisibilityState.known, nextState.known)) {
+    if (columnVisibilityState && arraysEqual(columnVisibilityState.hidden, nextState.hidden)) {
         columnVisibilityState = nextState;
         return;
     }
@@ -318,49 +309,9 @@ const writeColumnVisibilityState = (visible: string[], known?: string[]) => {
     columnVisibilityState = nextState;
 };
 
-const mergeVisibleColumnsWithCurrentColumns = (
-    currentVisible: string[],
-    columns: ColumnDef[],
-    known?: string[],
-): ColumnVisibilityState => {
-    const currentFields = allColumnFieldsFromColumns(columns);
-    const currentFieldSet = new Set(currentFields);
-    const normalizedCurrent = currentVisible.filter(
-        (field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false),
-    );
 
-    const visibleSet = new Set(normalizedCurrent);
-    const mergedVisible = [...normalizedCurrent];
 
-    if (known && known.length > 0) {
-        const knownSet = new Set(known);
-        const newFields = currentFields.filter((field) => !knownSet.has(field));
-
-        for (const field of newFields) {
-            const column = columns.find((col) => col.field === field);
-            if (column?.visible !== false && !visibleSet.has(field)) {
-                mergedVisible.push(field);
-                visibleSet.add(field);
-            }
-        }
-    } else {
-        for (const field of visibleColumnFieldsFromColumns(columns)) {
-            if (!visibleSet.has(field)) {
-                mergedVisible.push(field);
-                visibleSet.add(field);
-            }
-        }
-    }
-
-    const mergedKnown = Array.from(new Set([...(known ?? []), ...currentFields]));
-
-    return {
-        visible: mergedVisible,
-        known: mergedKnown,
-    };
-};
-
-const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
+const visibleColumns = ref<string[]>(resolveVisibleColumnsFromHidden(props.columns, readHiddenColumnState()));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
 const activeFiltersPopoverRef = ref();
@@ -770,19 +721,13 @@ const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
 watch(
     () => props.columns,
     (newColumns) => {
-        const currentState = columnVisibilityState ?? readColumnVisibilityState();
-        const merged = mergeVisibleColumnsWithCurrentColumns(visibleColumns.value, newColumns, currentState.known);
-        const knownChanged = !arraysEqual(merged.known, currentState.known);
-        const visibleChanged = !arraysEqual(merged.visible, visibleColumns.value);
+        const hidden = columnVisibilityState?.hidden ?? readHiddenColumnState();
+        const nextVisible = resolveVisibleColumnsFromHidden(newColumns, hidden);
 
-        if (visibleChanged) {
+        if (!arraysEqual(nextVisible, visibleColumns.value)) {
             isSyncingVisibleColumns = true;
-            visibleColumns.value = merged.visible;
+            visibleColumns.value = nextVisible;
             isSyncingVisibleColumns = false;
-        }
-
-        if (visibleChanged || knownChanged) {
-            writeColumnVisibilityState(merged.visible, merged.known);
         }
 
         syncFilterStateWithColumns(newColumns);
@@ -795,7 +740,8 @@ watch(visibleColumns, (newVal) => {
         return;
     }
 
-    writeColumnVisibilityState(newVal, columnVisibilityState?.known);
+    const hidden = resolveHiddenFromVisible(props.columns, newVal);
+    writeHiddenColumnState(hidden);
 }, { deep: true });
 
 onMounted(() => {
@@ -811,21 +757,15 @@ onMounted(() => {
         filters: initialFilters,
     });
 
-    const initialState = readColumnVisibilityState();
-    columnVisibilityState = initialState;
-    const merged = mergeVisibleColumnsWithCurrentColumns(initialState.visible, props.columns, initialState.known);
+    const hidden = readHiddenColumnState();
+    columnVisibilityState = { hidden, version: 2 };
+    const nextVisible = resolveVisibleColumnsFromHidden(props.columns, hidden);
 
-    if (!arraysEqual(merged.visible, visibleColumns.value)) {
+    if (!arraysEqual(nextVisible, visibleColumns.value)) {
         isSyncingVisibleColumns = true;
-        visibleColumns.value = merged.visible;
+        visibleColumns.value = nextVisible;
         isSyncingVisibleColumns = false;
     }
-
-    columnVisibilityState = {
-        visible: merged.visible,
-        known: merged.known,
-    };
-    writeColumnVisibilityState(merged.visible, merged.known);
 
     fetchData();
 });

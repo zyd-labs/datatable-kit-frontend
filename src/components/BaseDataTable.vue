@@ -208,6 +208,147 @@ const expandedRowsModel = computed({
 
 const store = useDatatableStore();
 const toast = useToast();
+const storageKey = computed(() => `dt-columns-${props.tableKey}`);
+
+type ColumnVisibilityState = {
+    visible: string[];
+    known: string[];
+};
+
+const visibleColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
+    return columns.filter((column) => column.visible !== false).map((column) => column.field);
+};
+
+const allColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
+    return columns.map((column) => column.field);
+};
+
+const arraysEqual = (a: string[], b: string[]): boolean => {
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    return a.every((value, index) => value === b[index]);
+};
+
+const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): ColumnVisibilityState => {
+    const currentFields = allColumnFieldsFromColumns(columns);
+    const currentFieldSet = new Set(currentFields);
+
+    if (Array.isArray(raw) && raw.every((item) => typeof item === 'string')) {
+        const visible = raw.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
+        return {
+            visible,
+            known: currentFields,
+        };
+    }
+
+    if (typeof raw === 'object' && raw !== null) {
+        const rawState = raw as Record<string, unknown>;
+        const visible = Array.isArray(rawState.visible)
+            ? rawState.visible.filter((item): item is string => typeof item === 'string')
+            : [];
+        const known = Array.isArray(rawState.known)
+            ? rawState.known.filter((item): item is string => typeof item === 'string')
+            : [];
+
+        const filteredVisible = visible.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
+        const filteredKnown = Array.from(new Set([
+            ...known.filter((field) => currentFieldSet.has(field)),
+            ...currentFields,
+        ]));
+
+        return {
+            visible: filteredVisible,
+            known: filteredKnown,
+        };
+    }
+
+    return {
+        visible: visibleColumnFieldsFromColumns(columns),
+        known: currentFields,
+    };
+};
+
+let columnVisibilityState: ColumnVisibilityState | null = null;
+
+const readColumnVisibilityState = (): ColumnVisibilityState => {
+    try {
+        const rawValue = localStorage.getItem(storageKey.value);
+        if (!rawValue) {
+            const fields = allColumnFieldsFromColumns(props.columns);
+            return {
+                visible: visibleColumnFieldsFromColumns(props.columns),
+                known: fields,
+            };
+        }
+
+        return normalizeColumnVisibilityState(JSON.parse(rawValue), props.columns);
+    } catch (error) {
+        console.warn('localStorage okuma hatası:', error);
+        const fields = allColumnFieldsFromColumns(props.columns);
+        return {
+            visible: visibleColumnFieldsFromColumns(props.columns),
+            known: fields,
+        };
+    }
+};
+
+const writeColumnVisibilityState = (visible: string[]) => {
+    const state: ColumnVisibilityState = {
+        visible,
+        known: allColumnFieldsFromColumns(props.columns),
+    };
+
+    try {
+        localStorage.setItem(storageKey.value, JSON.stringify(state));
+    } catch (error) {
+        console.warn('localStorage yazma hatası:', error);
+    }
+
+    columnVisibilityState = state;
+};
+
+const mergeVisibleColumnsWithCurrentColumns = (
+    currentVisible: string[],
+    columns: ColumnDef[],
+    known?: string[],
+): ColumnVisibilityState => {
+    const currentFields = allColumnFieldsFromColumns(columns);
+    const currentFieldSet = new Set(currentFields);
+    const normalizedCurrent = currentVisible.filter(
+        (field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false),
+    );
+
+    const visibleSet = new Set(normalizedCurrent);
+    const mergedVisible = [...normalizedCurrent];
+
+    if (known && known.length > 0) {
+        const knownSet = new Set(known);
+        const newFields = currentFields.filter((field) => !knownSet.has(field));
+
+        for (const field of newFields) {
+            const column = columns.find((col) => col.field === field);
+            if (column?.visible !== false && !visibleSet.has(field)) {
+                mergedVisible.push(field);
+                visibleSet.add(field);
+            }
+        }
+    } else {
+        for (const field of visibleColumnFieldsFromColumns(columns)) {
+            if (!visibleSet.has(field)) {
+                mergedVisible.push(field);
+                visibleSet.add(field);
+            }
+        }
+    }
+
+    return {
+        visible: mergedVisible,
+        known: currentFields,
+    };
+};
+
 const visibleColumns = ref<string[]>(props.columns.filter((c) => c.visible !== false).map((c) => c.field));
 const filters = ref<Record<string, any>>({});
 const selectedRows = ref<unknown[]>([]);
@@ -328,30 +469,62 @@ const resolveColumnDataType = (column: ColumnDef): string => {
     return column.dataType || 'text';
 };
 
+const buildFilterForColumn = (column: ColumnDef): DataTableFilter => {
+    const filterConfig = getFilterConfig(column);
+    if (column.defaultFilter) {
+        return column.defaultFilter as DataTableFilter;
+    }
+
+    return {
+        operator: filterConfig?.operator || 'and',
+        constraints: [
+            {
+                value: null,
+                matchMode: getDefaultMatchMode(column, filterConfig),
+            },
+        ],
+    } as DataTableFilter;
+};
+
 const initFilters = (): Record<string, DataTableFilter> => {
     const filterObj: Record<string, DataTableFilter> = {};
     props.columns.forEach((col) => {
         if (col.filter !== false) {
-            const filterConfig = getFilterConfig(col);
-            const filterKey = resolveFilterKey(col);
-
-            if (col.defaultFilter) {
-                filterObj[filterKey] = col.defaultFilter as DataTableFilter;
-            } else {
-                filterObj[filterKey] = {
-                    operator: filterConfig?.operator || 'and',
-                    constraints: [
-                        {
-                            value: null,
-                            matchMode: getDefaultMatchMode(col, filterConfig),
-                        },
-                    ],
-                } as DataTableFilter;
-            }
+            filterObj[resolveFilterKey(col)] = buildFilterForColumn(col);
         }
     });
     filters.value = filterObj as any;
     return filterObj;
+};
+
+const syncFilterStateWithColumns = (columns: ColumnDef[]) => {
+    const nextFilters = { ...(filters.value as Record<string, DataTableFilter>) };
+    const allowedKeys = new Set<string>();
+
+    columns.forEach((col) => {
+        if (col.filter !== false) {
+            const filterKey = resolveFilterKey(col);
+            allowedKeys.add(filterKey);
+            if (!Object.prototype.hasOwnProperty.call(nextFilters, filterKey)) {
+                nextFilters[filterKey] = buildFilterForColumn(col);
+            }
+        }
+    });
+
+    Object.keys(nextFilters).forEach((field) => {
+        if (field === 'global') {
+            return;
+        }
+
+        if (!allowedKeys.has(field)) {
+            delete nextFilters[field];
+        }
+    });
+
+    filters.value = nextFilters as any;
+    if (tableState.value) {
+        store.patch(props.tableKey, { filters: nextFilters });
+    }
 };
 
 const getDefaultMatchMode = (column: ColumnDef, filter?: ColumnFilterConfig | null) => {
@@ -583,12 +756,24 @@ const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
     filterOverlay.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 };
 
+watch(
+    () => props.columns,
+    (newColumns) => {
+        const currentState = columnVisibilityState ?? readColumnVisibilityState();
+        const merged = mergeVisibleColumnsWithCurrentColumns(visibleColumns.value, newColumns, currentState.known);
+
+        if (!arraysEqual(merged.visible, visibleColumns.value)) {
+            visibleColumns.value = merged.visible;
+        }
+
+        writeColumnVisibilityState(merged.visible);
+        syncFilterStateWithColumns(newColumns);
+    },
+    { deep: true },
+);
+
 watch(visibleColumns, (newVal) => {
-    try {
-        localStorage.setItem(`dt-columns-${props.tableKey}`, JSON.stringify(newVal));
-    } catch (error) {
-        console.warn('localStorage yazma hatası:', error);
-    }
+    writeColumnVisibilityState(newVal);
 }, { deep: true });
 
 onMounted(() => {
@@ -604,19 +789,11 @@ onMounted(() => {
         filters: initialFilters,
     });
 
-    try {
-        const savedColumns = localStorage.getItem(`dt-columns-${props.tableKey}`);
-        if (savedColumns) {
-            const parsedColumns = JSON.parse(savedColumns);
-            const validColumns = parsedColumns.filter((col: string) => props.columns.some((propCol) => propCol.field === col && propCol.visible !== false));
-            if (validColumns.length > 0) {
-                visibleColumns.value = validColumns;
-            }
-        }
-    } catch (error) {
-        console.warn('localStorage okuma hatası:', error);
-        visibleColumns.value = props.columns.filter((c) => c.visible !== false).map((c) => c.field);
-    }
+    const initialState = readColumnVisibilityState();
+    columnVisibilityState = initialState;
+    const merged = mergeVisibleColumnsWithCurrentColumns(initialState.visible, props.columns, initialState.known);
+    visibleColumns.value = merged.visible;
+    writeColumnVisibilityState(merged.visible);
 
     fetchData();
 });

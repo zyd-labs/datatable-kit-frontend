@@ -223,6 +223,8 @@ const allColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
     return columns.map((column) => column.field);
 };
 
+const currentColumnFields = (): string[] => allColumnFieldsFromColumns(props.columns);
+
 const arraysEqual = (a: string[], b: string[]): boolean => {
     if (a.length !== b.length) {
         return false;
@@ -253,10 +255,7 @@ const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): Col
             : [];
 
         const filteredVisible = visible.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
-        const filteredKnown = Array.from(new Set([
-            ...known.filter((field) => currentFieldSet.has(field)),
-            ...currentFields,
-        ]));
+        const filteredKnown = known.filter((field) => currentFieldSet.has(field));
 
         return {
             visible: filteredVisible,
@@ -271,12 +270,13 @@ const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): Col
 };
 
 let columnVisibilityState: ColumnVisibilityState | null = null;
+let isSyncingVisibleColumns = false;
 
 const readColumnVisibilityState = (): ColumnVisibilityState => {
     try {
         const rawValue = localStorage.getItem(storageKey.value);
         if (!rawValue) {
-            const fields = allColumnFieldsFromColumns(props.columns);
+            const fields = currentColumnFields();
             return {
                 visible: visibleColumnFieldsFromColumns(props.columns),
                 known: fields,
@@ -286,7 +286,7 @@ const readColumnVisibilityState = (): ColumnVisibilityState => {
         return normalizeColumnVisibilityState(JSON.parse(rawValue), props.columns);
     } catch (error) {
         console.warn('localStorage okuma hatası:', error);
-        const fields = allColumnFieldsFromColumns(props.columns);
+        const fields = currentColumnFields();
         return {
             visible: visibleColumnFieldsFromColumns(props.columns),
             known: fields,
@@ -294,19 +294,29 @@ const readColumnVisibilityState = (): ColumnVisibilityState => {
     }
 };
 
-const writeColumnVisibilityState = (visible: string[]) => {
-    const state: ColumnVisibilityState = {
-        visible,
-        known: allColumnFieldsFromColumns(props.columns),
+const writeColumnVisibilityState = (visible: string[], known: string[] = currentColumnFields()) => {
+    const currentFields = currentColumnFields();
+    const currentFieldSet = new Set(currentFields);
+    const allowedVisible = visible.filter((field) => currentFieldSet.has(field) && props.columns.some((col) => col.field === field && col.visible !== false));
+    const allowedKnown = known.filter((field) => currentFieldSet.has(field));
+
+    const nextState: ColumnVisibilityState = {
+        visible: allowedVisible,
+        known: allowedKnown,
     };
 
+    if (columnVisibilityState && arraysEqual(columnVisibilityState.visible, nextState.visible) && arraysEqual(columnVisibilityState.known, nextState.known)) {
+        columnVisibilityState = nextState;
+        return;
+    }
+
     try {
-        localStorage.setItem(storageKey.value, JSON.stringify(state));
+        localStorage.setItem(storageKey.value, JSON.stringify(nextState));
     } catch (error) {
         console.warn('localStorage yazma hatası:', error);
     }
 
-    columnVisibilityState = state;
+    columnVisibilityState = nextState;
 };
 
 const mergeVisibleColumnsWithCurrentColumns = (
@@ -761,19 +771,30 @@ watch(
     (newColumns) => {
         const currentState = columnVisibilityState ?? readColumnVisibilityState();
         const merged = mergeVisibleColumnsWithCurrentColumns(visibleColumns.value, newColumns, currentState.known);
+        const knownChanged = !arraysEqual(merged.known, currentState.known);
+        const visibleChanged = !arraysEqual(merged.visible, visibleColumns.value);
 
-        if (!arraysEqual(merged.visible, visibleColumns.value)) {
+        if (visibleChanged) {
+            isSyncingVisibleColumns = true;
             visibleColumns.value = merged.visible;
+            isSyncingVisibleColumns = false;
         }
 
-        writeColumnVisibilityState(merged.visible);
+        if (visibleChanged || knownChanged) {
+            writeColumnVisibilityState(merged.visible, merged.known);
+        }
+
         syncFilterStateWithColumns(newColumns);
     },
     { deep: true },
 );
 
 watch(visibleColumns, (newVal) => {
-    writeColumnVisibilityState(newVal);
+    if (isSyncingVisibleColumns) {
+        return;
+    }
+
+    writeColumnVisibilityState(newVal, currentColumnFields());
 }, { deep: true });
 
 onMounted(() => {
@@ -792,8 +813,14 @@ onMounted(() => {
     const initialState = readColumnVisibilityState();
     columnVisibilityState = initialState;
     const merged = mergeVisibleColumnsWithCurrentColumns(initialState.visible, props.columns, initialState.known);
-    visibleColumns.value = merged.visible;
-    writeColumnVisibilityState(merged.visible);
+
+    if (!arraysEqual(merged.visible, visibleColumns.value)) {
+        isSyncingVisibleColumns = true;
+        visibleColumns.value = merged.visible;
+        isSyncingVisibleColumns = false;
+    }
+
+    writeColumnVisibilityState(merged.visible, merged.known);
 
     fetchData();
 });

@@ -286,10 +286,12 @@ const readHiddenColumnState = (): string[] => {
 };
 
 const writeHiddenColumnState = (hidden: string[]) => {
-    const filteredHidden = hidden.filter((field) => typeof field === 'string' && field !== '');
+    const normalizedHidden = Array.from(
+        new Set(hidden.filter((field): field is string => typeof field === 'string' && field !== ''))
+    );
 
     const nextState: ColumnVisibilityState = {
-        hidden: filteredHidden,
+        hidden: normalizedHidden,
         version: 2,
     };
 

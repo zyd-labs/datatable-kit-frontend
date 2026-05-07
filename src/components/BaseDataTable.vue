@@ -287,7 +287,7 @@ const readHiddenColumnState = (): string[] => {
 
 const writeHiddenColumnState = (hidden: string[]) => {
     const normalizedHidden = Array.from(
-        new Set(hidden.filter((field): field is string => typeof field === 'string' && field !== ''))
+        new Set(hidden.filter((field): field is string => typeof field === 'string' && field.trim() !== ''))
     );
 
     const nextState: ColumnVisibilityState = {
@@ -308,7 +308,6 @@ const writeHiddenColumnState = (hidden: string[]) => {
 
     columnVisibilityState = nextState;
 };
-
 
 
 const visibleColumns = ref<string[]>(resolveVisibleColumnsFromHidden(props.columns, readHiddenColumnState()));

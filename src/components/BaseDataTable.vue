@@ -255,11 +255,10 @@ const normalizeColumnVisibilityState = (raw: unknown, columns: ColumnDef[]): Col
             : [];
 
         const filteredVisible = visible.filter((field) => currentFieldSet.has(field) && columns.some((col) => col.field === field && col.visible !== false));
-        const filteredKnown = known.filter((field) => currentFieldSet.has(field));
 
         return {
             visible: filteredVisible,
-            known: filteredKnown,
+            known: known,
         };
     }
 
@@ -294,15 +293,15 @@ const readColumnVisibilityState = (): ColumnVisibilityState => {
     }
 };
 
-const writeColumnVisibilityState = (visible: string[], known: string[] = currentColumnFields()) => {
+const writeColumnVisibilityState = (visible: string[], known?: string[]) => {
     const currentFields = currentColumnFields();
     const currentFieldSet = new Set(currentFields);
     const allowedVisible = visible.filter((field) => currentFieldSet.has(field) && props.columns.some((col) => col.field === field && col.visible !== false));
-    const allowedKnown = known.filter((field) => currentFieldSet.has(field));
+    const mergedKnown = Array.from(new Set([...(known ?? columnVisibilityState?.known ?? []), ...currentFields]));
 
     const nextState: ColumnVisibilityState = {
         visible: allowedVisible,
-        known: allowedKnown,
+        known: mergedKnown,
     };
 
     if (columnVisibilityState && arraysEqual(columnVisibilityState.visible, nextState.visible) && arraysEqual(columnVisibilityState.known, nextState.known)) {
@@ -353,9 +352,11 @@ const mergeVisibleColumnsWithCurrentColumns = (
         }
     }
 
+    const mergedKnown = Array.from(new Set([...(known ?? []), ...currentFields]));
+
     return {
         visible: mergedVisible,
-        known: currentFields,
+        known: mergedKnown,
     };
 };
 
@@ -794,7 +795,7 @@ watch(visibleColumns, (newVal) => {
         return;
     }
 
-    writeColumnVisibilityState(newVal, currentColumnFields());
+    writeColumnVisibilityState(newVal, columnVisibilityState?.known);
 }, { deep: true });
 
 onMounted(() => {
@@ -820,6 +821,10 @@ onMounted(() => {
         isSyncingVisibleColumns = false;
     }
 
+    columnVisibilityState = {
+        visible: merged.visible,
+        known: merged.known,
+    };
     writeColumnVisibilityState(merged.visible, merged.known);
 
     fetchData();

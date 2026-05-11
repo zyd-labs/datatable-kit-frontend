@@ -35,11 +35,17 @@
         </template>
 
         <template #empty>
-            <div class="text-center py-8">
-                <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
-                <p class="text-gray-500">Kayıt bulunamadı</p>
-            </div>
-        </template>
+  <slot
+    name="empty"
+    :has-active-filters="hasActiveFilters"
+    :global-search="globalSearchValue"
+  >
+    <div class="text-center py-8">
+      <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
+      <p class="text-gray-500">Kayıt bulunamadı</p>
+    </div>
+  </slot>
+</template>
 
         <template #loading>
             <Skeleton height="3rem" class="mb-2" v-for="i in 5" :key="i" />
@@ -214,7 +220,9 @@ type ColumnVisibilityState = {
     hidden: string[];
     version: 2;
 };
-
+const hasActiveFilters = computed(() => {
+    return activeFilterRows.value.length > 0 || globalSearchValue.value.trim() !== '';
+});
 const allColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
     return columns.map((column) => column.field);
 };

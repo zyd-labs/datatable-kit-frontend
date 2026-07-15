@@ -85,7 +85,7 @@
                 <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
                     v-model="filterModel.value" :options="resolveSelectOptions(col)"
                     :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
+                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" appendTo="self" />
 
                 <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
                     selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"

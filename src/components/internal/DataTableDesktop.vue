@@ -95,6 +95,7 @@
                 name="empty"
                 :has-active-filters="hasActiveFiltersOrSearch"
                 :global-filter="globalSearchValue"
+                :global-search="globalSearchValue"
             >
                 <div class="py-8 text-center">
                     <i class="pi pi-inbox mb-4 text-4xl text-surface-400" aria-hidden="true" />

@@ -35,6 +35,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
+        appendTo="self"
         @update:model-value="onValueUpdate"
     />
 

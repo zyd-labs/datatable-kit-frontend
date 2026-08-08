@@ -63,6 +63,7 @@
                 name="empty"
                 :has-active-filters="hasActiveFiltersOrSearch"
                 :global-filter="globalSearchValue"
+                :global-search="globalSearchValue"
             >
                 <i class="pi pi-inbox mb-3 text-3xl text-surface-400" aria-hidden="true" />
                 <p class="text-surface-500">

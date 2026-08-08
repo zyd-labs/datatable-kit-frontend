@@ -22,7 +22,7 @@
                 v-for="row in activeFilterRows"
                 :key="row.key"
                 type="button"
-                class="inline-flex min-h-9 max-w-full items-center gap-2 rounded-md border border-surface-200 bg-surface-50 px-2 py-1 text-sm dark:border-surface-700 dark:bg-surface-800"
+                class="inline-flex min-h-10 max-w-full items-center gap-2 rounded-md border border-surface-200 bg-surface-50 px-2.5 py-1.5 text-sm dark:border-surface-700 dark:bg-surface-800"
                 :aria-label="`${row.label} filtresini kaldır`"
                 @click="emit('clear-filter-constraint', { field: row.field, constraintIndex: row.constraintIndex })"
             >
@@ -40,7 +40,7 @@
                 text
                 size="small"
                 severity="danger"
-                class="min-h-9"
+                class="min-h-10"
                 @click="emit('clear-filters')"
             />
         </div>

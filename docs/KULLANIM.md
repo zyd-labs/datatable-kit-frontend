@@ -33,7 +33,7 @@ Peer dependency uyumunu kontrol edin:
 - `primevue@^4.0.0`
 - `pinia@^3.0.0`
 - `@vueuse/core@^14.0.0`
-- `@zyd-labs/primevue-lookup@^0.1.0`
+- `@zyd-labs/primevue-lookup@>=0.1.0 <1.0.0`
 
 ## 2) HTTP İstemcisi Entegrasyonu (Zorunlu)
 

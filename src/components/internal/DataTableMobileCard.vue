@@ -16,13 +16,18 @@
             <button
                 v-else-if="selectionMode === 'single'"
                 type="button"
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-surface-400"
-                :class="isSelected ? 'border-primary bg-primary' : 'bg-transparent'"
+                class="flex min-h-11 min-w-11 shrink-0 items-center justify-center"
                 :aria-label="selectionAriaLabel"
                 :aria-pressed="isSelected"
                 @click.stop="emit('toggle-selection')"
             >
-                <span v-if="isSelected" class="h-2 w-2 rounded-full bg-surface-0" aria-hidden="true" />
+                <span
+                    class="flex h-5 w-5 items-center justify-center rounded-full border border-surface-400"
+                    :class="isSelected ? 'border-primary bg-primary' : 'bg-transparent'"
+                    aria-hidden="true"
+                >
+                    <span v-if="isSelected" class="h-2 w-2 rounded-full bg-surface-0" />
+                </span>
             </button>
 
             <div class="min-w-0 flex-1">

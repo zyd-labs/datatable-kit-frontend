@@ -8,6 +8,7 @@
             :model-value="globalSearchValue"
             type="search"
             :placeholder="labels.globalSearchPlaceholder"
+            :aria-label="labels.globalSearchPlaceholder"
             class="w-full min-h-11"
             @update:model-value="onSearchUpdate"
         />

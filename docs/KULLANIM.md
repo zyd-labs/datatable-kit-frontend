@@ -24,7 +24,7 @@ Paket, backend'den aşağıdaki formatta yanıt bekler:
 ## Kurulum
 
 ```bash
-npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.2.0
+npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.3.0
 ```
 
 Peer dependency uyumunu kontrol edin:
@@ -83,7 +83,7 @@ Paket girişinden (`@zyd-labs/datatable-kit`) erişilenler:
 - `resolveDatatableHttpClient()`
 - `hasDatatableHttpClient()`
 - `resetDatatableHttpClient()`
-- Tüm datatable type'ları (`ColumnDef`, `DataTableState`, vb.)
+- Tüm datatable type'ları (`ColumnDef`, `ColumnMobileConfig`, `ColumnMobileRole`, `ResponsiveMode`, vb.)
 
 ## 4) `BaseDataTable` Kullanımı
 
@@ -134,20 +134,25 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `defaultSortField` / `defaultSortOrder` (opsiyonel): İlk yükleme sıralaması.
 - `defaultRows` (opsiyonel, varsayılan `10`): Sayfa başına kayıt.
 - `actionsHeader` (opsiyonel, varsayılan `"İşlemler"`): Aksiyon sütunu başlığı.
-- `expandedRows` (opsiyonel): Satır açılım durumu.
+- `expandedRows` (opsiyonel): Satır açılım durumu (`v-model:expanded-rows` destekler).
 - `selectionMode` (opsiyonel): `'single' | 'multiple'`.
+- `responsiveMode` (opsiyonel, varsayılan `'table'`): `'table' | 'adaptive'`.
+- `mobileBreakpoint` (opsiyonel, varsayılan `768`): Adaptive modda mobil eşik (px).
 
 ### Event'ler
 
 - `selection-change(rows)`: Seçili satırlar değiştiğinde tetiklenir.
 - `filter-change(filters)`: Filtre değiştiğinde tetiklenir.
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.
+- `update:expandedRows(value)`: Expand state iki yönlü bağlandığında tetiklenir.
 
 ### Slot'lar
 
-- `header-actions`: Sol üst alandaki özel aksiyonlar.
-- `actions`: Satır bazlı aksiyon sütunu.
+- `header-actions`: Üst alandaki özel aksiyonlar.
+- `actions`: Satır bazlı aksiyon alanı (desktop sütun / mobil kart).
 - `expansion`: Satır detay içeriği.
+- `empty`: Boş durum içeriği (`hasActiveFilters`, `globalFilter` slot props).
+- `mobile-card`: Adaptive mobil kart içeriğini özelleştirir.
 
 ### `defineExpose` ile açılan metotlar
 
@@ -343,7 +348,73 @@ Neden: `localStorage` içinde `dt-columns-{tableKey}` kayıtlı.
 
 Çözüm: İlgili key'i temizleyin veya `tableKey` değiştirin.
 
-## 13) Üretim Öncesi Kontrol Listesi
+## 13) Responsive / Adaptive Mobil Mod
+
+`responsiveMode` varsayılanı `"table"`dır. Mevcut consumer’lar yükseltme sonrası
+davranış değişikliği görmez.
+
+```vue
+<BaseDataTable
+  table-key="users"
+  endpoint="/users"
+  :columns="columns"
+  responsive-mode="adaptive"
+  :mobile-breakpoint="768"
+/>
+```
+
+### Davranış
+
+- `responsiveMode="table"`: yalnızca mevcut desktop DataTable.
+- `responsiveMode="adaptive"` + viewport `<= mobileBreakpoint`: mobil kart listesi.
+- `responsiveMode="adaptive"` + viewport `> mobileBreakpoint`: desktop DataTable.
+- Aynı anda iki sunum mount edilmez.
+- Backend sözleşmesi değişmez (`first`, `rows`, `filters`, `global`, `sortField`, `sortOrder`, `export`).
+
+### `ColumnMobileConfig`
+
+```ts
+mobile?: {
+  visible?: boolean;
+  role?: 'title' | 'subtitle' | 'meta' | 'badge';
+  order?: number;
+  label?: string;
+}
+```
+
+Kurallar:
+
+- `mobile.visible === false`: mobil kartta asla gösterilmez.
+- `mobile.visible === true`: mobil için uygundur.
+- `mobile.visible` tanımsızsa: `column.visible !== false` kullanılır.
+- Desktop MultiSelect ile gizlenen sütunlar mobil kart kimliğini bozmaz.
+- `mobile.order` varsa sıralama buna göre; yoksa kolon sırası korunur.
+- `title` yoksa ilk uygun kolon title olur.
+- Birden fazla `title`: ilki birincil, diğerleri subtitle alanına akar.
+- `mobile.label` meta etiketini override eder; yoksa `header` kullanılır.
+- `render` desktop ve mobil için ortaktır.
+
+### `mobile-card` slot
+
+`#mobile-card="{ data, columns }"` generic kart içeriğini tamamen override eder.
+
+Paket altyapısı aynı kalır:
+
+- selection chrome
+- expansion
+- actions
+- toolbar / pagination / filters / sort
+
+### Mobil UX özeti
+
+- Toolbar: global arama, Filtreler (aktif sayı), Sırala, Yenile, Export
+- Filtreler: Drawer + mevcut filter model (live apply)
+- Aktif filtre chip’leri
+- Sıralama: Drawer (artan/azalan + sıralamayı kaldır)
+- Pagination: `1–10 / 127 kayıt` + Önceki/Sonraki + sayfa boyutu
+- Selection / expansion / actions mevcut API ile çalışır
+
+## 14) Üretim Öncesi Kontrol Listesi
 
 - HTTP adapter register edildi.
 - Endpoint `{ data, total }` döndürüyor.
@@ -351,4 +422,6 @@ Neden: `localStorage` içinde `dt-columns-{tableKey}` kayıtlı.
 - Sort alanları backend whitelist içinde.
 - Export endpoint'i `blob` ve `content-disposition` ile uyumlu.
 - Boş durum, loading ve hata toast davranışları test edildi.
-- Mobil görünümde paginator ve filtre menüsü doğrulandı.
+- `responsiveMode="table"` ile mevcut desktop davranış korundu.
+- `responsiveMode="adaptive"` ile breakpoint üstü/altı sunumlar doğrulandı.
+- Mobil filtre Drawer, sort, pagination, selection ve expansion test edildi.

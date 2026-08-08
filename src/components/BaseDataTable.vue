@@ -1,171 +1,187 @@
 <template>
-    <DataTable ref="dataTableRef" :value="tableState?.data" :lazy="true" :paginator="true" :rows="tableState?.rows"
-        :totalRecords="tableState?.total" :loading="tableState?.loading" :first="tableState?.first"
-        :sortField="tableState?.sortField" :sortOrder="tableState?.sortOrder" v-model:filters="filters"
-        filterDisplay="menu" :globalFilterFields="globalFilterFields" removableSort @page="onPage" @sort="onSort"
-        @filter="onFilter" dataKey="id" :rowsPerPageOptions="[10, 25, 50, 100]"
-        paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
-        size="small" class="responsive-datatable" showGridlines v-model:expandedRows="expandedRowsModel" @row-toggle="onRowToggle"
-        v-model:selection="selectedRows" :selectionMode="selectionMode">
-        <template #header>
-            <div class="flex flex-col gap-4">
-                <div v-if="$slots['header-actions']" class="flex flex-wrap gap-2">
-                    <slot name="header-actions"></slot>
+    <div class="datatable-kit-root">
+        <DataTableMobile
+            v-if="useMobilePresentation"
+            :columns="columns"
+            :rows="mobileRows"
+            :first="tableState?.first ?? 0"
+            :rows-per-page="tableState?.rows ?? defaultRows"
+            :total="tableState?.total ?? 0"
+            :loading="Boolean(tableState?.loading)"
+            :exporting="exporting"
+            :global-search-value="globalSearchValue"
+            :filters="filters"
+            :active-filter-rows="activeFilterRows"
+            :active-filter-count="activeFilterCount"
+            :sort-field="tableState?.sortField"
+            :sort-order="tableState?.sortOrder"
+            :selection-mode="selectionMode"
+            :selected-rows="selectedRows"
+            :expanded-rows="expandedRowsModel"
+            @update:global-search-value="onGlobalSearchValueUpdate"
+            @update:filters="onMobileFiltersUpdate"
+            @clear-filters="clearFilters"
+            @clear-filter-constraint="onClearFilterConstraint"
+            @refresh="refreshData"
+            @export="exportTable"
+            @page="onPage"
+            @sort="onMobileSort"
+            @toggle-selection="onMobileToggleSelection"
+            @toggle-expand="onMobileToggleExpand"
+        >
+            <template v-if="$slots['header-actions']" #header-actions>
+                <slot name="header-actions"></slot>
+            </template>
+            <template v-if="$slots['mobile-card']" #mobile-card="slotProps">
+                <slot name="mobile-card" v-bind="slotProps"></slot>
+            </template>
+            <template v-if="$slots.actions" #actions="slotProps">
+                <slot name="actions" v-bind="slotProps"></slot>
+            </template>
+            <template v-if="$slots.expansion" #expansion="slotProps">
+                <slot name="expansion" v-bind="slotProps"></slot>
+            </template>
+            <template v-if="$slots.empty" #empty="slotProps">
+                <slot name="empty" v-bind="slotProps"></slot>
+            </template>
+        </DataTableMobile>
+
+        <DataTableDesktop
+            v-else
+            ref="desktopRef"
+            :data="tableState?.data ?? []"
+            :first="tableState?.first ?? 0"
+            :rows="tableState?.rows ?? defaultRows"
+            :total="tableState?.total ?? 0"
+            :loading="Boolean(tableState?.loading)"
+            :exporting="exporting"
+            :sort-field="tableState?.sortField"
+            :sort-order="tableState?.sortOrder"
+            :filters="filters"
+            :global-filter-fields="globalFilterFields"
+            :global-search-value="globalSearchValue"
+            :columns="columns"
+            :visible-columns="visibleColumns"
+            :actions-header="actionsHeader"
+            :selection-mode="selectionMode"
+            :selected-rows="selectedRows"
+            :expanded-rows="expandedRowsModel"
+            :active-filter-count="activeFilterCount"
+            @page="onPage"
+            @sort="onSort"
+            @filter="onFilter"
+            @row-toggle="onRowToggle"
+            @refresh="refreshData"
+            @export="exportTable"
+            @toggle-active-filters="toggleActiveFiltersPopover"
+            @update:global-search-value="onGlobalSearchValueUpdate"
+            @update:visible-columns="onVisibleColumnsUpdate"
+            @update:selected-rows="onSelectedRowsUpdate"
+            @update:expanded-rows="onExpandedRowsUpdate"
+            @update:filters="onDesktopFiltersUpdate"
+            @lookup-selection-meta="onLookupSelectionMetaPayload"
+        >
+            <template v-if="$slots['header-actions']" #header-actions>
+                <slot name="header-actions"></slot>
+            </template>
+            <template v-if="$slots.actions" #actions="slotProps">
+                <slot name="actions" v-bind="slotProps"></slot>
+            </template>
+            <template v-if="$slots.expansion" #expansion="slotProps">
+                <slot name="expansion" v-bind="slotProps"></slot>
+            </template>
+            <template v-if="$slots.empty" #empty="slotProps">
+                <slot name="empty" v-bind="slotProps"></slot>
+            </template>
+        </DataTableDesktop>
+
+        <Popover v-if="!useMobilePresentation" ref="activeFiltersPopoverRef">
+            <div class="w-[20rem] max-w-[calc(100vw-2rem)] p-1">
+                <div class="mb-2 flex items-center justify-between">
+                    <h4 class="text-sm font-semibold">{{ labels.activeFilters }}</h4>
+                    <Button
+                        v-if="activeFilterRows.length"
+                        type="button"
+                        :label="labels.clearAllFilters"
+                        text
+                        size="small"
+                        severity="danger"
+                        @click="clearFilters"
+                    />
                 </div>
 
-                <div class="flex flex-row flex-wrap items-center gap-3">
-                    <InputText v-model="globalSearchValue" type="text" placeholder="Genel ara..." size="small"
-                        @input="onGlobalSearchChange" class="w-full sm:w-[15rem] md:flex-1" />
-
-                    <div class="flex items-center gap-2 shrink-0">
-                        <Button icon="pi pi-sync" severity="secondary" size="small" @click="refreshData"
-                            v-tooltip="'Yenile'" />
-                        <Button type="button" icon="pi pi-filter-slash" severity="secondary" size="small"
-                            @click="toggleActiveFiltersPopover" v-tooltip="'Filtreleri temizle'" />
-                        <Button icon="pi pi-file-excel" severity="success" size="small" :loading="exporting"
-                            :disabled="exporting || tableState?.loading" @click="exportTable"
-                            v-tooltip="'Excel olarak indir'" />
+                <div v-if="activeFilterRows.length" class="flex flex-col gap-2">
+                    <div
+                        v-for="row in activeFilterRows"
+                        :key="row.key"
+                        class="flex items-center justify-between gap-2 rounded-md border border-surface-200 px-2 py-1.5 dark:border-surface-700"
+                    >
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate text-xs text-surface-500">{{ row.label }}</div>
+                            <div class="truncate text-sm font-medium">{{ row.value }}</div>
+                        </div>
+                        <Button
+                            type="button"
+                            icon="pi pi-times"
+                            text
+                            rounded
+                            severity="danger"
+                            size="small"
+                            :aria-label="`${row.label} filtresini kaldır`"
+                            @click="clearSingleFilterConstraint(row.field, row.constraintIndex)"
+                        />
                     </div>
+                </div>
 
-                    <MultiSelect v-model="visibleColumns" :options="columns" optionLabel="header" optionValue="field"
-                        placeholder="Sütunları Seç" display="chip" :maxSelectedLabels="2" size="small"
-                        class="min-w-[10rem] max-w-[14rem] shrink-0" />
+                <div
+                    v-else
+                    class="rounded-md border border-dashed border-surface-300 px-3 py-4 text-center text-sm text-surface-500 dark:border-surface-700"
+                >
+                    {{ labels.noActiveFilters }}
                 </div>
             </div>
-        </template>
-
-        <template #empty>
-            <div class="text-center py-8">
-                <i class="fas fa-inbox text-4xl text-gray-400 mb-4"></i>
-                <p class="text-gray-500">Kayıt bulunamadı</p>
-            </div>
-        </template>
-
-        <template #loading>
-            <Skeleton height="3rem" class="mb-2" v-for="i in 5" :key="i" />
-        </template>
-
-        <Column v-if="selectionMode" :selectionMode="selectionMode" :exportable="false" headerStyle="width: 3rem"
-            style="width: 3rem" />
-        <Column v-if="$slots.expansion" :exportable="false" :expander="true" headerStyle="width: 3rem" />
-        <Column v-for="col in visibleColumnsData" :key="col.field" :field="col.field"
-            :filterField="col.filterField ?? col.field" :header="col.header" :sortable="col.sortable !== false"
-            :dataType="resolveColumnDataType(col)"
-            :showFilterMatchModes="col.filter === false ? false : !(getFilterConfig(col)?.showMatchModes === false)"
-            :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)">
-            <template #body="slotProps" v-if="col.render">
-                <component v-if="isComponent(col.render)" :is="col.render" :data="slotProps.data" />
-                <template v-else-if="typeof col.render === 'function'">
-                    <RenderCell :render-result="(col.render as Function)(slotProps.data)" />
-                </template>
-            </template>
-
-            <template #filter="{ filterModel }" v-if="col.filter !== false">
-                <MultiSelect v-if="resolveFilterType(col) === 'multi-select'" v-model="filterModel.value"
-                    :options="getFilterOptions(col)" :optionLabel="getFilterOptionLabel(col)"
-                    :optionValue="getFilterOptionValue(col)"
-                    :maxSelectedLabels="getFilterConfig(col)?.maxSelectedLabels ?? 3" filter
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-
-                <LookupSelect
-                    v-else-if="resolveFilterType(col) === 'lookup' || resolveFilterType(col) === 'lookup-multiple'"
-                    v-model="filterModel.value" :endpoint="getFilterConfig(col)?.lookupEndpoint ?? ''"
-                    :multiple="resolveFilterType(col) === 'lookup-multiple'"
-                    :filters="getFilterConfig(col)?.lookupParams" :placeholder="resolveFilterPlaceholder(col)"
-                    :disabled="!getFilterConfig(col)?.lookupEndpoint"
-                    @selection-meta="(options: LookupOption[]) => onLookupSelectionMeta(col, filterModel, options)"
-                    class="w-full" />
-
-                <Select v-else-if="resolveFilterType(col) === 'select' || resolveFilterType(col) === 'boolean'"
-                    v-model="filterModel.value" :options="resolveSelectOptions(col)"
-                    :optionLabel="getFilterOptionLabel(col)" :optionValue="getFilterOptionValue(col)"
-                    :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-
-                <DatePicker v-else-if="resolveFilterType(col) === 'date-range'" v-model="filterModel.value"
-                    selectionMode="range" dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)"
-                    size="small" class="w-full" />
-
-                <DatePicker v-else-if="resolveFilterType(col) === 'date'" v-model="filterModel.value"
-                    dateFormat="dd/mm/yy" :placeholder="resolveFilterPlaceholder(col)" size="small" class="w-full" />
-
-                <InputNumber v-else-if="col.dataType === 'numeric'" v-model="filterModel.value"
-                    :placeholder="resolveFilterPlaceholder(col, 'Değer')" size="small" class="w-full" />
-
-                <InputText v-else v-model="filterModel.value" type="text"
-                    :placeholder="resolveFilterPlaceholder(col, 'Ara...')" size="small" class="w-full" />
-            </template>
-        </Column>
-
-        <Column v-if="$slots.actions" :exportable="false" :header="actionsHeader">
-            <template #body="slotProps">
-                <div class="flex gap-2 justify-start items-center ">
-                    <slot name="actions" :data="slotProps.data"></slot>
-                </div>
-            </template>
-        </Column>
-
-        <template #paginatorstart>
-            <div class="flex items-center gap-2 text-sm text-gray-600">
-                <i class="fas fa-info-circle"></i>
-                <span>Toplam: <strong>{{ tableState?.total || 0 }}</strong> kayıt</span>
-            </div>
-        </template>
-
-        <template v-if="$slots.expansion" #expansion="{ data }">
-            <slot name="expansion" :data="data"></slot>
-        </template>
-    </DataTable>
-
-    <Popover ref="activeFiltersPopoverRef">
-        <div class="w-[20rem] max-w-[calc(100vw-2rem)] p-1">
-            <div class="mb-2 flex items-center justify-between">
-                <h4 class="text-sm font-semibold">Aktif Filtreler</h4>
-                <Button v-if="activeFilterRows.length" type="button" label="Tümünü temizle" text size="small"
-                    severity="danger" @click="clearFilters" />
-            </div>
-
-            <div v-if="activeFilterRows.length" class="flex flex-col gap-2">
-                <div v-for="row in activeFilterRows" :key="row.key"
-                    class="flex items-center justify-between gap-2 rounded-md border border-surface-200 px-2 py-1.5 dark:border-surface-700">
-                    <div class="min-w-0 flex-1">
-                        <div class="truncate text-xs text-surface-500">{{ row.label }}</div>
-                        <div class="truncate text-sm font-medium">{{ row.value }}</div>
-                    </div>
-                    <Button type="button" icon="pi pi-times" text rounded severity="danger" size="small"
-                        :aria-label="`${row.label} filtresini kaldır`"
-                        @click="clearSingleFilterConstraint(row.field, row.constraintIndex)" />
-                </div>
-            </div>
-
-            <div v-else
-                class="rounded-md border border-dashed border-surface-300 px-3 py-4 text-center text-sm text-surface-500 dark:border-surface-700">
-                Aktif filtre bulunmuyor.
-            </div>
-        </div>
-    </Popover>
+        </Popover>
+    </div>
 </template>
 
 <script setup lang="ts">
 import type { LookupOption } from '@zyd-labs/primevue-lookup';
-import { LookupSelect } from '@zyd-labs/primevue-lookup';
-import type { ColumnDef, ColumnFilterConfig, DataTableFilter, FilterConstraint } from '../types/datatable';
+import { useMediaQuery } from '@vueuse/core';
+import { Button, Popover } from 'primevue';
+import { useToast } from 'primevue/usetoast';
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
-import { FilterMatchMode } from '@primevue/core/api';
+import type {
+    ActiveFilterRow,
+    ColumnDef,
+    DataTableFilter,
+    FilterConstraint,
+    ResponsiveMode,
+} from '../types/datatable';
 import {
-    Button,
-    Column,
-    DataTable,
-    DatePicker,
-    InputNumber,
-    InputText,
-    MultiSelect,
-    Popover,
-    Select,
-    Skeleton,
-} from 'primevue';
-import { useToast } from 'primevue/usetoast';
-import { computed, defineComponent, h, onMounted, onUnmounted, provide, ref, watch, type VNode } from 'vue';
+    buildFilterForColumn,
+    getDefaultMatchMode,
+    getFilterConfig,
+    resolveFilterKey,
+} from '../utils/columnFilters';
+import {
+    arraysEqual,
+    readHiddenColumnState,
+    resolveHiddenFromVisible,
+    resolveVisibleColumnsFromHidden,
+    writeHiddenColumnState,
+    type ColumnVisibilityState,
+} from '../utils/columnVisibility';
+import {
+    cleanFilters,
+    countActiveFilterConstraints,
+    formatFilterDisplayValue,
+    isConstraintValueEmpty,
+} from '../utils/filterPayload';
+import { DATATABLE_LABELS } from '../utils/labels';
+import DataTableDesktop from './internal/DataTableDesktop.vue';
+import DataTableMobile from './internal/DataTableMobile.vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -176,28 +192,56 @@ const props = withDefaults(defineProps<{
     defaultSortOrder?: 1 | -1;
     defaultRows?: number;
     actionsHeader?: string;
-    expandedRows?: Record<number, boolean>;
+    expandedRows?: Record<number | string, boolean>;
     selectionMode?: 'single' | 'multiple';
+    responsiveMode?: ResponsiveMode;
+    mobileBreakpoint?: number;
 }>(), {
     defaultRows: 10,
-    actionsHeader: 'İşlemler',
+    actionsHeader: DATATABLE_LABELS.actions,
     selectionMode: undefined,
+    responsiveMode: 'table',
+    mobileBreakpoint: 768,
 });
 
 const emit = defineEmits<{
     (e: 'row-toggle', data: unknown): void;
     (e: 'selection-change', rows: unknown[]): void;
     (e: 'filter-change', filters: Record<string, DataTableFilter>): void;
-    (e: 'update:expandedRows', value: Record<number, boolean>): void;
+    (e: 'update:expandedRows', value: Record<number | string, boolean>): void;
 }>();
 
-const expandedRowsFallback = ref<Record<number, boolean>>({});
+const labels = DATATABLE_LABELS;
+const store = useDatatableStore();
+const toast = useToast();
+const desktopRef = ref<InstanceType<typeof DataTableDesktop> | null>(null);
+const activeFiltersPopoverRef = ref();
+const exporting = ref(false);
+const filters = ref<Record<string, DataTableFilter>>({});
+const selectedRows = ref<unknown[]>([]);
+const globalSearchValue = ref('');
+const globalSearchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const expandedRowsFallback = ref<Record<number | string, boolean>>({});
+
+const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
+const useMobilePresentation = computed(() => {
+    return props.responsiveMode === 'adaptive' && isMobileViewport.value;
+});
+
+const storageKey = computed(() => `dt-columns-${props.tableKey}`);
+
+let columnVisibilityState: ColumnVisibilityState | null = null;
+let isSyncingVisibleColumns = false;
+
+const visibleColumns = ref<string[]>(
+    resolveVisibleColumnsFromHidden(props.columns, readHiddenColumnState(storageKey.value, props.columns)),
+);
 
 const expandedRowsModel = computed({
-    get(): Record<number, boolean> {
+    get(): Record<number | string, boolean> {
         return props.expandedRows ?? expandedRowsFallback.value;
     },
-    set(value: Record<number, boolean>) {
+    set(value: Record<number | string, boolean>) {
         if (props.expandedRows !== undefined) {
             emit('update:expandedRows', value);
         } else {
@@ -205,126 +249,6 @@ const expandedRowsModel = computed({
         }
     },
 });
-
-const store = useDatatableStore();
-const toast = useToast();
-const storageKey = computed(() => `dt-columns-${props.tableKey}`);
-
-type ColumnVisibilityState = {
-    hidden: string[];
-    version: 2;
-};
-
-const allColumnFieldsFromColumns = (columns: ColumnDef[]): string[] => {
-    return columns.map((column) => column.field);
-};
-
-const defaultVisibleColumnFields = (columns: ColumnDef[]): string[] => {
-    return columns.filter((column) => column.visible !== false).map((column) => column.field);
-};
-
-const currentColumnFields = (): string[] => allColumnFieldsFromColumns(props.columns);
-
-const resolveVisibleColumnsFromHidden = (columns: ColumnDef[], hidden: string[]): string[] => {
-    const hiddenSet = new Set(hidden);
-    return defaultVisibleColumnFields(columns).filter((field) => !hiddenSet.has(field));
-};
-
-const resolveHiddenFromVisible = (columns: ColumnDef[], visible: string[]): string[] => {
-    const visibleSet = new Set(visible);
-    return defaultVisibleColumnFields(columns).filter((field) => !visibleSet.has(field));
-};
-
-const arraysEqual = (a: string[], b: string[]): boolean => {
-    if (a.length !== b.length) {
-        return false;
-    }
-
-    return a.every((value, index) => value === b[index]);
-};
-
-const migrateOldVisibilityFormat = (raw: unknown, columns: ColumnDef[]): string[] => {
-    const defaultVisible = defaultVisibleColumnFields(columns);
-
-    if (Array.isArray(raw) && raw.every((item) => typeof item === 'string')) {
-        const legacyVisible = raw.filter((item): item is string => typeof item === 'string');
-        return defaultVisible.filter((field) => !legacyVisible.includes(field));
-    }
-
-    if (typeof raw === 'object' && raw !== null) {
-        const rawState = raw as Record<string, unknown>;
-        const visible = Array.isArray(rawState.visible)
-            ? rawState.visible.filter((item): item is string => typeof item === 'string')
-            : [];
-        return defaultVisible.filter((field) => !visible.includes(field));
-    }
-
-    return [];
-};
-
-let columnVisibilityState: ColumnVisibilityState | null = null;
-let isSyncingVisibleColumns = false;
-
-const readHiddenColumnState = (): string[] => {
-    try {
-        const rawValue = localStorage.getItem(storageKey.value);
-        if (!rawValue) {
-            return [];
-        }
-
-        const parsed = JSON.parse(rawValue);
-
-        if (typeof parsed === 'object' && parsed !== null && parsed.version === 2 && Array.isArray(parsed.hidden)) {
-            return parsed.hidden.filter((item): item is string => typeof item === 'string');
-        }
-
-        return migrateOldVisibilityFormat(parsed, props.columns);
-    } catch (error) {
-        console.warn('localStorage okuma hatası:', error);
-        return [];
-    }
-};
-
-const writeHiddenColumnState = (hidden: string[]) => {
-    const normalizedHidden = Array.from(
-        new Set(hidden.filter((field): field is string => typeof field === 'string' && field.trim() !== ''))
-    );
-
-    const nextState: ColumnVisibilityState = {
-        hidden: normalizedHidden,
-        version: 2,
-    };
-
-    if (columnVisibilityState && arraysEqual(columnVisibilityState.hidden, nextState.hidden)) {
-        columnVisibilityState = nextState;
-        return;
-    }
-
-    try {
-        localStorage.setItem(storageKey.value, JSON.stringify(nextState));
-    } catch (error) {
-        console.warn('localStorage yazma hatası:', error);
-    }
-
-    columnVisibilityState = nextState;
-};
-
-
-const visibleColumns = ref<string[]>(resolveVisibleColumnsFromHidden(props.columns, readHiddenColumnState()));
-const filters = ref<Record<string, any>>({});
-const selectedRows = ref<unknown[]>([]);
-const activeFiltersPopoverRef = ref();
-const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null);
-const globalSearchValue = ref<string>('');
-const globalSearchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
-
-watch(
-    selectedRows,
-    (rows) => {
-        emit('selection-change', rows);
-    },
-    { deep: true },
-);
 
 const tableState = computed(() => {
     const state = store.tables[props.tableKey];
@@ -351,7 +275,50 @@ const tableState = computed(() => {
     return state;
 });
 
-const visibleColumnsData = computed(() => props.columns.filter((col) => visibleColumns.value.includes(col.field)));
+const mobileRows = computed(() => {
+    return (tableState.value?.data ?? []) as Record<string, unknown>[];
+});
+
+const activeFilterRows = computed<ActiveFilterRow[]>(() => {
+    const rows: ActiveFilterRow[] = [];
+    const fieldLabelMap = new Map(props.columns.map((column) => [resolveFilterKey(column), column.header]));
+
+    Object.entries(filters.value).forEach(([field, filter]) => {
+        if (!filter?.constraints?.length) {
+            return;
+        }
+
+        const label = fieldLabelMap.get(field) ?? field;
+
+        filter.constraints.forEach((constraint, index) => {
+            if (isConstraintValueEmpty(constraint.value)) {
+                return;
+            }
+
+            rows.push({
+                key: `${field}-${index}`,
+                field,
+                label,
+                value: formatFilterDisplayValue(constraint as FilterConstraint),
+                constraintIndex: index,
+            });
+        });
+    });
+
+    return rows;
+});
+
+const activeFilterCount = computed(() => countActiveFilterConstraints(filters.value));
+
+const { fetchData: apiFetch, exportData: apiExport } = useDatatable(props.endpoint);
+
+watch(
+    selectedRows,
+    (rows) => {
+        emit('selection-change', rows);
+    },
+    { deep: true },
+);
 
 watch(
     () => tableState.value?.globalFilter,
@@ -359,7 +326,7 @@ watch(
         if (!tableState.value) {
             return;
         }
-        
+
         if (newGlobalFilter === undefined || newGlobalFilter === null) {
             globalSearchValue.value = '';
         } else if (globalSearchValue.value !== newGlobalFilter) {
@@ -368,85 +335,6 @@ watch(
     },
 );
 
-const { fetchData: apiFetch, exportData: apiExport } = useDatatable(props.endpoint);
-
-const getFilterConfig = (column: ColumnDef): ColumnFilterConfig | null => {
-    return typeof column.filter === 'object' ? column.filter : null;
-};
-
-const resolveFilterKey = (column: ColumnDef): string => {
-    return column.filterField ?? column.field;
-};
-
-const resolveFilterType = (column: ColumnDef): NonNullable<ColumnFilterConfig['filterType']> => {
-    const filterConfig = getFilterConfig(column);
-    if (filterConfig?.filterType) {
-        return filterConfig.filterType;
-    }
-
-    if (column.dataType === 'boolean') {
-        return 'boolean';
-    }
-
-    if (column.dataType === 'date') {
-        return 'date';
-    }
-
-    return 'text';
-};
-
-const getFilterOptions = (column: ColumnDef) => {
-    return getFilterConfig(column)?.filterOptions ?? [];
-};
-
-const getFilterOptionLabel = (column: ColumnDef): string => {
-    return getFilterConfig(column)?.filterOptionLabel ?? 'label';
-};
-
-const getFilterOptionValue = (column: ColumnDef): string => {
-    return getFilterConfig(column)?.filterOptionValue ?? 'value';
-};
-
-const resolveFilterPlaceholder = (column: ColumnDef, fallback = 'Seçiniz'): string => {
-    const filterConfig = getFilterConfig(column);
-
-    return filterConfig?.filterPlaceholder ?? filterConfig?.placeholder ?? fallback;
-};
-
-const resolveSelectOptions = (column: ColumnDef) => {
-    if (resolveFilterType(column) === 'boolean' && !getFilterConfig(column)?.filterOptions?.length) {
-        return [{ label: 'Evet', value: 1 }, { label: 'Hayır', value: 0 }];
-    }
-
-    return getFilterOptions(column);
-};
-
-const resolveColumnDataType = (column: ColumnDef): string => {
-    const filterType = resolveFilterType(column);
-    if (filterType === 'date-range' || filterType === 'date') {
-        return 'date';
-    }
-
-    return column.dataType || 'text';
-};
-
-const buildFilterForColumn = (column: ColumnDef): DataTableFilter => {
-    const filterConfig = getFilterConfig(column);
-    if (column.defaultFilter) {
-        return column.defaultFilter as DataTableFilter;
-    }
-
-    return {
-        operator: filterConfig?.operator || 'and',
-        constraints: [
-            {
-                value: null,
-                matchMode: getDefaultMatchMode(column, filterConfig),
-            },
-        ],
-    } as DataTableFilter;
-};
-
 const initFilters = (): Record<string, DataTableFilter> => {
     const filterObj: Record<string, DataTableFilter> = {};
     props.columns.forEach((col) => {
@@ -454,12 +342,12 @@ const initFilters = (): Record<string, DataTableFilter> => {
             filterObj[resolveFilterKey(col)] = buildFilterForColumn(col);
         }
     });
-    filters.value = filterObj as any;
+    filters.value = filterObj;
     return filterObj;
 };
 
 const syncFilterStateWithColumns = (columns: ColumnDef[]) => {
-    const nextFilters = { ...(filters.value as Record<string, DataTableFilter>) };
+    const nextFilters = { ...filters.value };
     const allowedKeys = new Set<string>();
 
     columns.forEach((col) => {
@@ -482,137 +370,10 @@ const syncFilterStateWithColumns = (columns: ColumnDef[]) => {
         }
     });
 
-    filters.value = nextFilters as any;
+    filters.value = nextFilters;
     if (tableState.value) {
         store.patch(props.tableKey, { filters: nextFilters });
     }
-};
-
-const getDefaultMatchMode = (column: ColumnDef, filter?: ColumnFilterConfig | null) => {
-    if (filter?.filterMatchMode) {
-        return filter.filterMatchMode;
-    }
-
-    switch (resolveFilterType(column)) {
-        case 'lookup':
-        case 'select':
-        case 'boolean':
-            return FilterMatchMode.EQUALS;
-        case 'lookup-multiple':
-        case 'multi-select':
-            return FilterMatchMode.IN;
-        case 'date-range':
-            return FilterMatchMode.BETWEEN;
-        case 'date':
-            return FilterMatchMode.DATE_IS;
-        default:
-            return FilterMatchMode.CONTAINS;
-    }
-};
-
-const isComponent = (value: unknown): boolean => {
-    return Boolean(value && typeof value === 'object' && ('template' in (value as Record<string, unknown>) || 'render' in (value as Record<string, unknown>) || 'setup' in (value as Record<string, unknown>)));
-};
-
-const isVNode = (value: unknown): value is VNode => {
-    return Boolean(value && typeof value === 'object' && '__v_isVNode' in (value as Record<string, unknown>));
-};
-
-const RenderCell = defineComponent({
-    props: {
-        renderResult: {
-            type: [Object, String, Number] as unknown as () => VNode | string | number,
-            required: true,
-        },
-    },
-    setup(props: { renderResult: VNode | string | number }) {
-        return () => {
-            if (isVNode(props.renderResult)) {
-                return props.renderResult;
-            }
-
-            const content = typeof props.renderResult === 'number'
-                ? String(props.renderResult)
-                : (props.renderResult as string);
-
-            return h('div', {
-                innerHTML: content,
-                class: 'render-content',
-            });
-        };
-    },
-});
-
-const isConstraintValueEmpty = (value: unknown): boolean => {
-    if (value === null || value === undefined) {
-        return true;
-    }
-
-    if (typeof value === 'string') {
-        return value.trim() === '';
-    }
-
-    if (Array.isArray(value)) {
-        return value.length === 0;
-    }
-
-    return false;
-};
-
-const formatDateValue = (value: unknown): unknown => {
-    if (value instanceof Date) {
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, '0');
-        const day = String(value.getDate()).padStart(2, '0');
-
-        return `${year}-${month}-${day}`;
-    }
-
-    if (typeof value === 'string' && value.includes('T')) {
-        const date = new Date(value);
-        if (!Number.isNaN(date.getTime())) {
-            return formatDateValue(date);
-        }
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((item) => formatDateValue(item));
-    }
-
-    return value;
-};
-
-const normalizePayloadConstraint = (constraint: FilterConstraint): FilterConstraint => {
-    return {
-        value: formatDateValue(constraint.value),
-        matchMode: constraint.matchMode,
-    };
-};
-
-const cleanFilters = (rawFilters: Record<string, DataTableFilter>) => {
-    const cleaned: Record<string, DataTableFilter> = {};
-
-    Object.keys(rawFilters).forEach((field) => {
-        if (field === 'global') {
-            return;
-        }
-
-        const filter = rawFilters[field];
-        if (!filter || !filter.constraints) {
-            return;
-        }
-
-        const validConstraints = filter.constraints.filter((constraint: any) => !isConstraintValueEmpty(constraint.value));
-
-        if (validConstraints.length > 0) {
-            cleaned[field] = {
-                operator: filter.operator,
-                constraints: validConstraints.map((constraint) => normalizePayloadConstraint(constraint as FilterConstraint)),
-            };
-        }
-    });
-
-    return cleaned;
 };
 
 const fetchData = async () => {
@@ -644,25 +405,26 @@ const fetchData = async () => {
             total: result.total,
             loading: false,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         store.patch(props.tableKey, { loading: false });
+        const message = error instanceof Error ? error.message : 'Veri yüklenemedi';
         toast.add({
             severity: 'error',
             summary: 'Hata',
-            detail: error?.message || 'Veri yüklenemedi',
+            detail: message,
             life: 3000,
         });
     }
 };
 
-const onPage = (event: any) => {
+const onPage = (event: { first: number; rows: number }) => {
     store.patch(props.tableKey, { first: event.first, rows: event.rows });
     fetchData();
 };
 
-const onSort = (event: any) => {
+const onSort = (event: { sortField?: string; sortOrder?: number | string | null }) => {
     const sortOrder = Number(event.sortOrder);
-    if (sortOrder === 0) {
+    if (sortOrder === 0 || Number.isNaN(sortOrder)) {
         store.patch(props.tableKey, {
             sortField: undefined,
             sortOrder: undefined,
@@ -676,10 +438,19 @@ const onSort = (event: any) => {
     fetchData();
 };
 
-const onFilter = (event: any) => {
-    const nextFilters = event.filters as Record<string, DataTableFilter>;
+const onMobileSort = (payload: { sortField?: string; sortOrder?: 1 | -1 }) => {
+    store.patch(props.tableKey, {
+        sortField: payload.sortField,
+        sortOrder: payload.sortOrder,
+        first: 0,
+    });
+    fetchData();
+};
+
+const applyFilterChange = (nextFilters: Record<string, DataTableFilter>) => {
     const currentFilters = (tableState.value?.filters ?? {}) as Record<string, DataTableFilter>;
 
+    filters.value = nextFilters;
     store.patch(props.tableKey, { filters: nextFilters, first: 0 });
     emit('filter-change', nextFilters);
 
@@ -693,7 +464,27 @@ const onFilter = (event: any) => {
     fetchData();
 };
 
+const onFilter = (event: { filters: Record<string, DataTableFilter> }) => {
+    applyFilterChange(event.filters);
+};
+
+const onMobileFiltersUpdate = (nextFilters: Record<string, DataTableFilter>) => {
+    applyFilterChange(nextFilters);
+};
+
+const onDesktopFiltersUpdate = (nextFilters: Record<string, DataTableFilter>) => {
+    filters.value = nextFilters;
+};
+
+const onClearFilterConstraint = (payload: { field: string; constraintIndex: number }) => {
+    clearSingleFilterConstraint(payload.field, payload.constraintIndex);
+};
+
 const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
+    if (useMobilePresentation.value) {
+        return;
+    }
+
     const target = event.target as HTMLElement | null;
     if (!target) {
         return;
@@ -706,13 +497,13 @@ const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
         return;
     }
 
-    const tableElement = (dataTableRef.value as any)?.$el as HTMLElement | undefined;
+    const tableElement = (desktopRef.value as { dataTableRef?: { $el?: HTMLElement } } | null)
+        ?.dataTableRef?.$el;
     const filterOverlay = tableElement?.querySelector<HTMLElement>('.p-datatable-filter-overlay');
     if (!filterOverlay) {
         return;
     }
 
-    // Mark as self interaction before PrimeVue outside-click handler runs.
     filterOverlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     filterOverlay.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 };
@@ -720,7 +511,7 @@ const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
 watch(
     () => props.columns,
     (newColumns) => {
-        const hidden = columnVisibilityState?.hidden ?? readHiddenColumnState();
+        const hidden = columnVisibilityState?.hidden ?? readHiddenColumnState(storageKey.value, newColumns);
         const nextVisible = resolveVisibleColumnsFromHidden(newColumns, hidden);
 
         if (!arraysEqual(nextVisible, visibleColumns.value)) {
@@ -729,7 +520,7 @@ watch(
             isSyncingVisibleColumns = false;
         }
 
-        writeHiddenColumnState(hidden);
+        columnVisibilityState = writeHiddenColumnState(storageKey.value, hidden, columnVisibilityState);
         syncFilterStateWithColumns(newColumns);
     },
     { deep: true },
@@ -741,7 +532,7 @@ watch(visibleColumns, (newVal) => {
     }
 
     const hidden = resolveHiddenFromVisible(props.columns, newVal);
-    writeHiddenColumnState(hidden);
+    columnVisibilityState = writeHiddenColumnState(storageKey.value, hidden, columnVisibilityState);
 }, { deep: true });
 
 onMounted(() => {
@@ -757,10 +548,10 @@ onMounted(() => {
         filters: initialFilters,
     });
 
-    const hidden = readHiddenColumnState();
+    const hidden = readHiddenColumnState(storageKey.value, props.columns);
     columnVisibilityState = { hidden, version: 2 };
-    writeHiddenColumnState(hidden);
-    
+    columnVisibilityState = writeHiddenColumnState(storageKey.value, hidden, columnVisibilityState);
+
     const nextVisible = resolveVisibleColumnsFromHidden(props.columns, hidden);
 
     if (!arraysEqual(nextVisible, visibleColumns.value)) {
@@ -775,7 +566,7 @@ onMounted(() => {
 onUnmounted(() => {
     document.removeEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
     document.removeEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
-    
+
     if (globalSearchDebounceTimer.value) {
         clearTimeout(globalSearchDebounceTimer.value);
     }
@@ -785,13 +576,16 @@ const refreshData = () => {
     fetchData();
 };
 
+const onGlobalSearchValueUpdate = (value: string): void => {
+    globalSearchValue.value = value;
+    onGlobalSearchChange();
+};
+
 const onGlobalSearchChange = (): void => {
-    // Clear existing debounce timer
     if (globalSearchDebounceTimer.value) {
         clearTimeout(globalSearchDebounceTimer.value);
     }
 
-    // Set new debounce timer (400ms)
     globalSearchDebounceTimer.value = setTimeout(() => {
         if (!tableState.value) {
             return;
@@ -830,12 +624,12 @@ const clearFilters = () => {
                             matchMode: getDefaultMatchMode(col, filterConfig),
                         },
                     ],
-                } as DataTableFilter;
+                };
             }
         }
     });
 
-    filters.value = clearedFilters as any;
+    filters.value = clearedFilters;
     store.patch(props.tableKey, {
         filters: clearedFilters,
         globalFilter: undefined,
@@ -846,7 +640,7 @@ const clearFilters = () => {
 };
 
 const clearSingleFilter = (field: string): void => {
-    const nextFilters = { ...(filters.value as Record<string, DataTableFilter>) };
+    const nextFilters = { ...filters.value };
     const column = props.columns.find((col) => resolveFilterKey(col) === field);
     const filterConfig = column ? getFilterConfig(column) : null;
 
@@ -855,21 +649,18 @@ const clearSingleFilter = (field: string): void => {
     } else {
         nextFilters[field] = {
             operator: filterConfig?.operator || 'and',
-            constraints: [{ value: null, matchMode: getDefaultMatchMode(column ?? { field: '', header: '' }, filterConfig) as FilterConstraint['matchMode'] }],
+            constraints: [{
+                value: null,
+                matchMode: getDefaultMatchMode(column ?? { field: '', header: '' }, filterConfig),
+            }],
         };
     }
 
-    filters.value = nextFilters as any;
-    store.patch(props.tableKey, {
-        filters: nextFilters,
-        first: 0,
-    });
-    emit('filter-change', nextFilters);
-    fetchData();
+    applyFilterChange(nextFilters);
 };
 
 const clearSingleFilterConstraint = (field: string, constraintIndex: number): void => {
-    const current = (filters.value as Record<string, DataTableFilter>)[field];
+    const current = filters.value[field];
     if (!current?.constraints?.length) {
         clearSingleFilter(field);
         return;
@@ -884,31 +675,19 @@ const clearSingleFilterConstraint = (field: string, constraintIndex: number): vo
         return;
     }
 
-    const nextFilters = {
-        ...(filters.value as Record<string, DataTableFilter>),
+    applyFilterChange({
+        ...filters.value,
         [field]: {
             operator: current.operator ?? 'and',
             constraints: nextConstraints,
-        } as DataTableFilter,
-    };
-
-    filters.value = nextFilters as any;
-    store.patch(props.tableKey, {
-        filters: nextFilters,
-        first: 0,
+        },
     });
-    emit('filter-change', nextFilters);
-    fetchData();
 };
 
 const resolveLookupDisplayLabel = (column: ColumnDef, option: LookupOption): string => {
     const filterConfig = getFilterConfig(column);
     const labelKey = filterConfig?.lookupOptionLabel;
-    if (!labelKey) {
-        return option.label;
-    }
-
-    if (labelKey === 'label') {
+    if (!labelKey || labelKey === 'label') {
         return option.label;
     }
 
@@ -920,72 +699,21 @@ const resolveLookupDisplayLabel = (column: ColumnDef, option: LookupOption): str
     return option.label;
 };
 
-const onLookupSelectionMeta = (
-    column: ColumnDef,
-    filterModel: { value: unknown; displayValue?: string | string[] | null },
-    options: LookupOption[],
-): void => {
-    const isMultiple = Array.isArray(filterModel.value);
-    const resolvedLabels = options.map((option) => resolveLookupDisplayLabel(column, option));
+const onLookupSelectionMetaPayload = (payload: {
+    column: ColumnDef;
+    filterModel: { value: unknown; displayValue?: string | string[] | null };
+    options: LookupOption[];
+}): void => {
+    const isMultiple = Array.isArray(payload.filterModel.value);
+    const resolvedLabels = payload.options.map((option) => resolveLookupDisplayLabel(payload.column, option));
 
     if (isMultiple) {
-        filterModel.displayValue = resolvedLabels;
+        payload.filterModel.displayValue = resolvedLabels;
         return;
     }
 
-    filterModel.displayValue = resolvedLabels[0] ?? null;
+    payload.filterModel.displayValue = resolvedLabels[0] ?? null;
 };
-
-const formatFilterValue = (constraint: FilterConstraint): string => {
-    const value = constraint.displayValue ?? constraint.value;
-
-    if (Array.isArray(value)) {
-        return value.map((item) => String(item)).join(', ');
-    }
-
-    if (value instanceof Date) {
-        return value.toLocaleDateString('tr-TR');
-    }
-
-    if (typeof value === 'boolean') {
-        return value ? 'Evet' : 'Hayır';
-    }
-
-    if (value === null || value === undefined || value === '') {
-        return '-';
-    }
-
-    return String(value);
-};
-
-const activeFilterRows = computed(() => {
-    const rows: Array<{ key: string; field: string; label: string; value: string; constraintIndex: number }> = [];
-    const fieldLabelMap = new Map(props.columns.map((column) => [resolveFilterKey(column), column.header]));
-
-    Object.entries(filters.value as Record<string, DataTableFilter>).forEach(([field, filter]) => {
-        if (!filter?.constraints?.length) {
-            return;
-        }
-
-        const label = fieldLabelMap.get(field) ?? field;
-
-        filter.constraints.forEach((constraint, index) => {
-            if (isConstraintValueEmpty(constraint.value)) {
-                return;
-            }
-
-            rows.push({
-                key: `${field}-${index}`,
-                field,
-                label,
-                value: formatFilterValue(constraint as FilterConstraint),
-                constraintIndex: index,
-            });
-        });
-    });
-
-    return rows;
-});
 
 const toggleActiveFiltersPopover = (event: Event): void => {
     activeFiltersPopoverRef.value?.toggle(event);
@@ -995,7 +723,76 @@ const onRowToggle = (data: unknown) => {
     emit('row-toggle', data);
 };
 
-const exporting = ref(false);
+const resolveRowKey = (row: Record<string, unknown>): string | number => {
+    const id = row.id;
+    if (typeof id === 'string' || typeof id === 'number') {
+        return id;
+    }
+
+    return JSON.stringify(row);
+};
+
+const onMobileToggleSelection = (row: Record<string, unknown>): void => {
+    const key = resolveRowKey(row);
+
+    if (props.selectionMode === 'single') {
+        const alreadySelected = selectedRows.value.some((selected) => {
+            if (!selected || typeof selected !== 'object') {
+                return false;
+            }
+            return resolveRowKey(selected as Record<string, unknown>) === key;
+        });
+
+        selectedRows.value = alreadySelected ? [] : [row];
+        return;
+    }
+
+    if (props.selectionMode === 'multiple') {
+        const exists = selectedRows.value.some((selected) => {
+            if (!selected || typeof selected !== 'object') {
+                return false;
+            }
+            return resolveRowKey(selected as Record<string, unknown>) === key;
+        });
+
+        if (exists) {
+            selectedRows.value = selectedRows.value.filter((selected) => {
+                if (!selected || typeof selected !== 'object') {
+                    return true;
+                }
+                return resolveRowKey(selected as Record<string, unknown>) !== key;
+            });
+        } else {
+            selectedRows.value = [...selectedRows.value, row];
+        }
+    }
+};
+
+const onMobileToggleExpand = (row: Record<string, unknown>): void => {
+    const key = resolveRowKey(row);
+    const next = { ...expandedRowsModel.value };
+
+    if (next[key]) {
+        delete next[key];
+    } else {
+        next[key] = true;
+    }
+
+    expandedRowsModel.value = next;
+    emit('row-toggle', { data: row, originalEvent: null });
+};
+
+const onVisibleColumnsUpdate = (value: string[]): void => {
+    visibleColumns.value = value;
+};
+
+const onSelectedRowsUpdate = (value: unknown[]): void => {
+    selectedRows.value = value;
+};
+
+const onExpandedRowsUpdate = (value: Record<number | string, boolean>): void => {
+    expandedRowsModel.value = value;
+};
 
 const exportTable = async () => {
     if (!tableState.value) {
@@ -1025,7 +822,9 @@ const exportTable = async () => {
 
         const blob = response.data instanceof Blob ? response.data : new Blob([response.data as BlobPart]);
         const dispositionHeader = response.headers?.['content-disposition'];
-        const disposition = Array.isArray(dispositionHeader) ? dispositionHeader[0] || '' : (dispositionHeader as string | undefined) || '';
+        const disposition = Array.isArray(dispositionHeader)
+            ? dispositionHeader[0] || ''
+            : (dispositionHeader as string | undefined) || '';
         const match = disposition.match(/filename="?([^";]+)"?/i);
         const fileName = match ? decodeURIComponent(match[1]) : 'export.xlsx';
 
@@ -1044,11 +843,12 @@ const exportTable = async () => {
             detail: 'Excel dosyası indiriliyor.',
             life: 3000,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Excel oluşturulurken hata oluştu';
         toast.add({
             severity: 'error',
             summary: 'Export Hatası',
-            detail: error?.message || 'Excel oluşturulurken hata oluştu',
+            detail: message,
             life: 4000,
         });
     } finally {
@@ -1073,66 +873,3 @@ defineExpose({
     clearSelection,
 });
 </script>
-
-<style scoped>
-@media (max-width: 640px) {
-    .responsive-datatable :deep(.p-datatable-header) {
-        padding: 0.5rem;
-    }
-
-    .responsive-datatable :deep(.p-paginator) {
-        flex-direction: column;
-        gap: 0.5rem;
-        padding: 0.5rem;
-    }
-
-    .responsive-datatable :deep(.p-paginator .p-paginator-left) {
-        order: 2;
-        justify-content: center;
-    }
-
-    .responsive-datatable :deep(.p-paginator .p-paginator-right) {
-        order: 1;
-        justify-content: center;
-    }
-
-    .responsive-datatable :deep(.p-paginator .p-dropdown) {
-        width: 100%;
-        max-width: 120px;
-    }
-
-    .responsive-datatable :deep(.p-datatable-tbody > tr > td) {
-        padding: 0.5rem;
-        font-size: 0.875rem;
-    }
-
-    .responsive-datatable :deep(.p-datatable-thead > tr > th) {
-        padding: 0.5rem;
-        font-size: 0.875rem;
-    }
-}
-
-@media (max-width: 768px) {
-    .responsive-datatable :deep(.p-datatable) {
-        font-size: 0.875rem;
-    }
-
-    .responsive-datatable :deep(.p-paginator) {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-}
-
-@media (max-width: 480px) {
-
-    .responsive-datatable :deep(.p-paginator .p-paginator-first),
-    .responsive-datatable :deep(.p-paginator .p-paginator-last) {
-        display: none;
-    }
-
-    .responsive-datatable :deep(.p-paginator .p-paginator-pages) {
-        display: flex;
-        gap: 0.25rem;
-    }
-}
-</style>

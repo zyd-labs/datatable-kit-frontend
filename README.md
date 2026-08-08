@@ -9,15 +9,16 @@ PrimeVue 4 + Tailwind 4 tabanlı projeler için yeniden kullanılabilir DataTabl
 ## Özellikler
 
 - `BaseDataTable` bileşeni: Sunucu tarafı pagination/sort/filter için hazır şablon.
+- Adaptive mobil mod (`responsive-mode="adaptive"`): aynı state modeli ile kart listesi sunumu.
 - `useDatatable` composable: Datatable backend sözleşmesine uygun GET & export çağrılarını basitleştirir.
 - Pinia `useDatatableStore`: Tablolar arası durum yönetimi (`first`, `rows`, `filters`, `sortField` vb.).
 - Http adapter katmanı: Projeye özel axios/fetch wrapper’ınızı kolayca bağlayın.
-- TypeScript desteği: `ColumnDef`, `DataTableState`, `DataTableFilter` vb. tipler.
+- TypeScript desteği: `ColumnDef`, `DataTableState`, `DataTableFilter`, `ColumnMobileConfig` vb. tipler.
 
 ## Kurulum
 
 ```bash
-npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.1.0
+npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.3.0
 # veya pnpm / yarn eşdeğerleri
 ```
 
@@ -164,6 +165,74 @@ const columns: ColumnDef[] = [
 ```
 
 `matchMode` otomatik olarak `FilterMatchMode.IN` değerine ayarlanır ve seçilen değerler backend’e dizi olarak gönderilir. Böylece PrimeVue filtre formatını koruyarak çoklu seçim ile filtreleme yapılabilir.
+
+## Responsive / Mobile Mode
+
+`responsiveMode` varsayılanı `"table"` olduğundan mevcut kurulumlar yükseltme sonrası davranış değiştirmez.
+
+```vue
+<BaseDataTable
+  table-key="users"
+  endpoint="/users"
+  :columns="columns"
+  responsive-mode="adaptive"
+  :mobile-breakpoint="768"
+/>
+```
+
+Adaptive modda breakpoint üstünde mevcut DataTable, altında mobil kart listesi render edilir. İkisi aynı store state’ini (`first`, `rows`, `filters`, `sortField`, `sortOrder`, `globalFilter`) kullanır.
+
+### Mobil sütun meta
+
+```ts
+const columns: ColumnDef[] = [
+  {
+    field: "name",
+    header: "Ad Soyad",
+    mobile: { role: "title", order: 1 },
+  },
+  {
+    field: "email",
+    header: "E-posta",
+    mobile: { role: "subtitle", order: 2 },
+  },
+  {
+    field: "status",
+    header: "Durum",
+    render: StatusBadge,
+    mobile: { role: "badge", order: 3 },
+  },
+  {
+    field: "city",
+    header: "Şehir",
+    mobile: { role: "meta", label: "Şehir", order: 4 },
+  },
+];
+```
+
+### Özel mobil kart
+
+```vue
+<BaseDataTable
+  table-key="vehicles"
+  endpoint="/vehicles"
+  :columns="columns"
+  responsive-mode="adaptive"
+>
+  <template #mobile-card="{ data }">
+    <div>
+      <strong>{{ data.plate }}</strong>
+      <div>{{ data.brand }} {{ data.model }}</div>
+    </div>
+  </template>
+
+  <template #actions="{ data }">
+    <!-- mevcut actions slot aynı şekilde çalışır -->
+  </template>
+</BaseDataTable>
+```
+
+Detaylar: [`docs/KULLANIM.md`](docs/KULLANIM.md)
 
 ## Export Akışı
 

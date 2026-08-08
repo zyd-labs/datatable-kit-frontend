@@ -72,6 +72,21 @@ export interface ColumnFilterConfig {
     constraints?: Array<{ value: unknown; matchMode: MatchMode }>;
 }
 
+export type ColumnMobileRole =
+    | 'title'
+    | 'subtitle'
+    | 'meta'
+    | 'badge';
+
+export interface ColumnMobileConfig {
+    visible?: boolean;
+    role?: ColumnMobileRole;
+    order?: number;
+    label?: string;
+}
+
+export type ResponsiveMode = 'table' | 'adaptive';
+
 export interface ColumnDef {
     field: string;
     filterField?: string;
@@ -82,5 +97,15 @@ export interface ColumnDef {
     dataType?: 'text' | 'numeric' | 'date' | 'boolean' | 'multi-select';
     render?: ((data: unknown) => string | VNode) | Component;
     defaultFilter?: ColumnDefaultFilter;
+    mobile?: ColumnMobileConfig;
 }
 
+export interface ActiveFilterRow {
+    key: string;
+    field: string;
+    label: string;
+    value: string;
+    constraintIndex: number;
+}
+
+export const DATATABLE_ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;

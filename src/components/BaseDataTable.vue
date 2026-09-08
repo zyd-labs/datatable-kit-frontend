@@ -223,6 +223,11 @@ const globalSearchValue = ref('');
 const globalSearchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const expandedRowsFallback = ref<Record<number | string, boolean>>({});
 
+const clearSelection = (): void => {
+    selectedRows.value = [];
+    emit('selection-change', []);
+};
+
 const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
 const useMobilePresentation = computed(() => {
     return props.responsiveMode === 'adaptive' && isMobileViewport.value;
@@ -418,11 +423,13 @@ const fetchData = async () => {
 };
 
 const onPage = (event: { first: number; rows: number }) => {
+    clearSelection();
     store.patch(props.tableKey, { first: event.first, rows: event.rows });
     fetchData();
 };
 
 const onSort = (event: { sortField?: string; sortOrder?: number | string | null }) => {
+    clearSelection();
     const sortOrder = Number(event.sortOrder);
     if (sortOrder === 0 || Number.isNaN(sortOrder)) {
         store.patch(props.tableKey, {
@@ -439,6 +446,7 @@ const onSort = (event: { sortField?: string; sortOrder?: number | string | null 
 };
 
 const onMobileSort = (payload: { sortField?: string; sortOrder?: 1 | -1 }) => {
+    clearSelection();
     store.patch(props.tableKey, {
         sortField: payload.sortField,
         sortOrder: payload.sortOrder,
@@ -461,6 +469,7 @@ const applyFilterChange = (nextFilters: Record<string, DataTableFilter>) => {
         return;
     }
 
+    clearSelection();
     fetchData();
 };
 
@@ -573,6 +582,7 @@ onUnmounted(() => {
 });
 
 const refreshData = () => {
+    clearSelection();
     fetchData();
 };
 
@@ -787,6 +797,11 @@ const onVisibleColumnsUpdate = (value: string[]): void => {
 };
 
 const onSelectedRowsUpdate = (value: unknown[]): void => {
+    if (!props.selectionMode) {
+        selectedRows.value = [];
+        return;
+    }
+
     selectedRows.value = value;
 };
 
@@ -858,11 +873,6 @@ const exportTable = async () => {
 
 const getSelectedRows = () => {
     return selectedRows.value;
-};
-
-const clearSelection = (): void => {
-    selectedRows.value = [];
-    emit('selection-change', []);
 };
 
 defineExpose({

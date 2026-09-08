@@ -25,8 +25,7 @@
         showGridlines
         v-model:expandedRows="expandedRowsModel"
         @row-toggle="emit('row-toggle', $event)"
-        v-model:selection="selectionModel"
-        :selectionMode="selectionMode"
+        v-bind="rowSelectionBindings"
     >
         <template #header>
             <div class="flex flex-col gap-4">
@@ -80,8 +79,10 @@
                         optionLabel="header"
                         optionValue="field"
                         :placeholder="labels.selectColumns"
+                        selectedItemsLabel="Sütunlar"
+                        selectionMessage="Sütunlar"
                         display="chip"
-                        :maxSelectedLabels="2"
+                        :maxSelectedLabels="0"
                         size="small"
                         class="min-w-[10rem] max-w-[14rem] shrink-0"
                         @update:model-value="emit('update:visibleColumns', $event)"
@@ -251,9 +252,23 @@ const filtersModel = computed({
     set: (value: Record<string, DataTableFilter>) => emit('update:filters', value),
 });
 
-const selectionModel = computed({
-    get: () => props.selectedRows,
-    set: (value: unknown[]) => emit('update:selectedRows', value),
+const rowSelectionBindings = computed(() => {
+    if (!props.selectionMode) {
+        return {};
+    }
+
+    return {
+        selection: props.selectedRows,
+        selectionMode: props.selectionMode,
+        'onUpdate:selection': (value: unknown[] | unknown | null) => {
+            if (Array.isArray(value)) {
+                emit('update:selectedRows', value);
+                return;
+            }
+
+            emit('update:selectedRows', value ? [value] : []);
+        },
+    };
 });
 
 const expandedRowsModel = computed({

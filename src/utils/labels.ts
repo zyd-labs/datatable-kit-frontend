@@ -21,6 +21,7 @@ export const DATATABLE_LABELS = {
     records: 'kayıt',
     rowsPerPage: 'Sayfa boyutu',
     selectColumns: 'Sütunları Seç',
+    columnsSelected: '{0} kolon',
     actions: 'İşlemler',
     matchMode: 'Eşleşme',
     operator: 'Operatör',

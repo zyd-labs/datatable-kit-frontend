@@ -1,14 +1,21 @@
 <template>
     <article
         class="rounded-lg border border-surface-200 bg-surface-0 p-3 dark:border-surface-700 dark:bg-surface-900"
-        :class="{ 'ring-1 ring-primary': isSelected && selectionMode === 'single' }"
+        :class="{
+            'ring-1 ring-primary': isSelected && selectionMode === 'single',
+            'cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none': cardClickEnabled,
+        }"
+        :tabindex="cardClickEnabled ? 0 : undefined"
+        :aria-label="cardClickAriaLabel"
         @click="onCardClick"
+        @keydown="onCardKeydown"
     >
         <div class="flex items-start gap-3">
             <div
                 v-if="selectionMode === 'multiple'"
                 class="flex min-h-11 min-w-11 items-center justify-center"
                 @click.stop
+                @keydown.stop
             >
                 <Checkbox
                     :model-value="isSelected"
@@ -25,6 +32,7 @@
                 :aria-label="selectionAriaLabel"
                 :aria-pressed="isSelected"
                 @click.stop="emit('toggle-selection')"
+                @keydown.stop
             >
                 <span
                     class="flex h-5 w-5 items-center justify-center rounded-full border border-surface-400"
@@ -129,6 +137,7 @@
                 <div
                     v-if="hasExpansion || hasActions"
                     class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-surface-200 pt-3 dark:border-surface-700"
+                    @keydown.stop
                 >
                     <Button
                         v-if="hasExpansion"
@@ -156,6 +165,7 @@
                     v-if="hasExpansion && isExpanded"
                     class="mt-3 rounded-md border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800"
                     @click.stop
+                    @keydown.stop
                 >
                     <slot name="expansion" :data="data"></slot>
                 </div>
@@ -178,7 +188,7 @@ import {
 import { DATATABLE_LABELS } from '../../utils/labels';
 import DataTableCellRender from './DataTableCellRender';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     data: Record<string, unknown>;
     index: number;
     columns: ColumnDef[];
@@ -186,7 +196,10 @@ const props = defineProps<{
     isSelected: boolean;
     isExpanded: boolean;
     hasExpansion: boolean;
-}>();
+    cardClickEnabled?: boolean;
+}>(), {
+    cardClickEnabled: false,
+});
 
 const emit = defineEmits<{
     (e: 'toggle-selection'): void;
@@ -240,14 +253,70 @@ const selectionAriaLabel = computed(() => {
     return props.isSelected ? 'Seçimi kaldır' : 'Satırı seç';
 });
 
+const cardClickAriaLabel = computed(() => {
+    if (!props.cardClickEnabled) {
+        return undefined;
+    }
+
+    const titleText = layout.value.titles
+        .map((item) => resolveDisplay(item.column))
+        .find((value) => Boolean(value));
+
+    if (titleText) {
+        return `${titleText}. ${labels.cardClick}`;
+    }
+
+    return labels.cardClick;
+});
+
+const INTERACTIVE_CARD_CLICK_BLOCKER = 'button, a, input, textarea, select, [role="button"], [role="checkbox"], [role="radio"]';
+
 const onMultipleSelect = (): void => {
     emit('toggle-selection');
 };
 
-const onCardClick = (event: Event): void => {
+const isNestedInteractiveClick = (event: Event): boolean => {
+    const target = event.target;
+    if (!(target instanceof Element) || target === event.currentTarget) {
+        return false;
+    }
+
+    return Boolean(target.closest(INTERACTIVE_CARD_CLICK_BLOCKER));
+};
+
+const emitCardClick = (event: Event): void => {
+    if (!props.cardClickEnabled) {
+        return;
+    }
+
     emit('card-click', {
         data: props.data,
         originalEvent: event,
     });
+};
+
+const onCardClick = (event: Event): void => {
+    if (isNestedInteractiveClick(event)) {
+        return;
+    }
+
+    emitCardClick(event);
+};
+
+const onCardKeydown = (event: KeyboardEvent): void => {
+    if (!props.cardClickEnabled) {
+        return;
+    }
+
+    if (event.target !== event.currentTarget) {
+        return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+    }
+
+    event.preventDefault();
+    emitCardClick(event);
 };
 </script>

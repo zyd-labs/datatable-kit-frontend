@@ -183,6 +183,8 @@ type DataViewMode = 'table' | 'cards'
 
 `viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir. Görünüm tercihi pakette `localStorage`’a yazılmaz; kalıcılık istiyorsanız `v-model:viewMode` ile consumer tarafında tutun.
 
+`showViewToggle`, **adaptive mobil kart zorlaması** sırasında gizlenir: o durumda tablo sunumu yoktur, Table düğmesi yanıltıcı olur. Desktop’ta ve `responsiveMode="table"` iken tablo ↔ kart geçişi çalışır.
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -240,7 +242,7 @@ const columns: ColumnDef[] = [
 - `cardLayout`: `'list'` (varsayılan, tek sütun) veya `'grid'` (`auto-fit` + `cardMinWidth`)
 - `cardMinWidth`: grid için minimum kart genişliği, varsayılan `320`
 - `cardGap`: kartlar arası boşluk (px), varsayılan `12`
-- `showViewToggle`: tablo/kart ikon düğmesi (`pi-list` / `pi-th-large`)
+- `showViewToggle`: tablo/kart ikon düğmesi (`pi-list` / `pi-th-large`). `responsiveMode="adaptive"` ve mobil viewport’ta gösterilmez.
 
 Grid, uygulama-özel kolon sayısı hardcode etmez:
 
@@ -250,7 +252,7 @@ grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-width)),
 
 ### Kart sütun meta
 
-`column.card` yoksa `column.mobile` kullanılır; ikisi de yoksa ilk uygun kolon `title`, kalanlar `meta` olur.
+`column.card` yoksa `column.mobile` kullanılır. Explicit `title` yoksa ilk **rolü olmayan** uygun kolon `title`, diğer rolesüz kolonlar `meta` olur. İlk kolon `badge` ise title bir sonraki rolesüz kolona kayar. Tüm uygun kolonların explicit (title olmayan) rolü varsa title uydurulmaz.
 
 ```ts
 card?: {
@@ -269,7 +271,9 @@ Kart görünürlüğü `card.visible` → `mobile.visible` → `column.visible !
 - `#mobile-card` — uyumluluk alias’ı (`#card` yoksa kullanılır)
 - `#header-actions`, `#actions`, `#expansion`, `#empty` — tablo ile aynı sözleşmeler
 
-`@card-click` payload: `{ data, originalEvent }`. Checkbox, aksiyon ve expand `stopPropagation` kullanır; kart tıklama seçim değildir.
+`@card-click` payload: `{ data, originalEvent }`. Checkbox, aksiyon, expand ve diğer native/ARIA kontroller `card-click` üretmez. Seçim ile kart tıklama ayrıdır.
+
+Listener bağlandığında kart klavye ile de açılır (Enter/Space), `tabindex="0"` ve focus halkası alır. Kart `role="button"` yapılmaz; içindeki seçim/aksiyon kontrolleri ayrı tab stop kalır.
 
 ## Responsive / Mobile Mode
 

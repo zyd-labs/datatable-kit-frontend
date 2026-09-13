@@ -53,8 +53,9 @@ const compareCardColumns = (a: CardColumnItem, b: CardColumnItem): number => {
 
 /**
  * Automatic layout when neither `card.role` nor `mobile.role` is set:
- * first eligible column → title, remaining eligible columns → meta.
- * Explicit roles always win. Multiple titles: first is primary, extras become subtitles.
+ * first eligible column without an explicit role → title, remaining unroled columns → meta.
+ * Explicit roles always win. If every eligible column has a non-title role, no title is invented.
+ * Multiple titles: first is primary, extras become subtitles.
  */
 export const resolveCardColumns = (columns: ColumnDef[]): CardColumnItem[] => {
     const eligible = columns
@@ -66,15 +67,18 @@ export const resolveCardColumns = (columns: ColumnDef[]): CardColumnItem[] => {
     }
 
     const hasExplicitTitle = eligible.some(({ config }) => config.role === 'title');
+    const automaticTitleEligibleIndex = hasExplicitTitle
+        ? -1
+        : eligible.findIndex(({ config }) => !config.role);
 
     const items: CardColumnItem[] = eligible.map(({ column, index, config }, eligibleIndex) => {
-        let role: ColumnCardRole = config.role ?? 'meta';
+        let role: ColumnCardRole;
 
-        if (!hasExplicitTitle && eligibleIndex === 0 && !config.role) {
+        if (config.role) {
+            role = config.role;
+        } else if (eligibleIndex === automaticTitleEligibleIndex) {
             role = 'title';
-        } else if (!config.role && hasExplicitTitle) {
-            role = 'meta';
-        } else if (!config.role && !hasExplicitTitle && eligibleIndex > 0) {
+        } else {
             role = 'meta';
         }
 

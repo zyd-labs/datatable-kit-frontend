@@ -139,7 +139,7 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `responsiveMode` (opsiyonel, varsayılan `'table'`): `'table' | 'adaptive'`.
 - `mobileBreakpoint` (opsiyonel, varsayılan `768`): Adaptive modda mobil eşik (px).
 - `viewMode` (opsiyonel, varsayılan `'table'`): `'table' | 'cards'`. `v-model:viewMode` destekler.
-- `showViewToggle` (opsiyonel, varsayılan `false`): Tablo/kart görünüm düğmesini gösterir.
+- `showViewToggle` (opsiyonel, varsayılan `false`): Tablo/kart görünüm düğmesini gösterir. Adaptive mobil kart zorlamasında gizlenir.
 - `cardLayout` (opsiyonel, varsayılan `'list'`): `'list' | 'grid'`.
 - `cardMinWidth` (opsiyonel, varsayılan `320`): Grid kartlarında minimum genişlik (px).
 - `cardGap` (opsiyonel, varsayılan `12`): Kartlar arası boşluk (px).
@@ -151,7 +151,7 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.
 - `update:expandedRows(value)`: Expand state iki yönlü bağlandığında tetiklenir.
 - `update:viewMode(value)`: Tablo/kart sunumu değiştiğinde tetiklenir.
-- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir.
+- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir. Listener varsa Enter/Space ve focus halkası da bağlanır.
 
 ### Slot'lar
 
@@ -377,6 +377,11 @@ Varsayılan `'table'`. `v-model:view-mode` desteklenir. Paket görünümü
 
 `viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir.
 
+`showViewToggle` yalnızca tablo sunumunun gerçekten seçilebildiği yerde görünür.
+`responsiveMode="adaptive"` + mobil viewport kartı zorlar; Table düğmesi orada
+yanıltıcı olacağı için toggle gizlenir. Desktop explicit table/cards geçişi
+ve `viewMode="cards"` (her viewport) değişmez.
+
 ```vue
 <BaseDataTable
   v-model:view-mode="viewMode"
@@ -393,6 +398,7 @@ Varsayılan `'table'`. `v-model:view-mode` desteklenir. Paket görünümü
 ```
 
 - `showViewToggle`: ikon-only tablo/kart düğmesi (`pi-list` / `pi-th-large`).
+  Adaptive mobilde gösterilmez.
 - `cardLayout`: `'list'` (varsayılan) veya `'grid'`.
 - `cardMinWidth`: grid minimum genişliği, varsayılan `320`.
 - `cardGap`: px cinsinden boşluk, varsayılan `12`.
@@ -444,7 +450,9 @@ Kurallar:
 - `visible` tanımsızsa: `column.visible !== false` kullanılır.
 - Desktop MultiSelect ile gizlenen sütunlar kart kimliğini bozmaz.
 - `order` varsa sıralama buna göre; yoksa kolon sırası korunur.
-- `title` yoksa ilk uygun kolon title, kalanlar meta olur.
+- `title` yoksa ilk **explicit rolü olmayan** uygun kolon title olur.
+- Explicit rolü olan kolonlar (ör. `badge`) otomatik title olmaz.
+- Tüm uygun kolonların title-olmayan explicit rolü varsa title uydurulmaz.
 - Birden fazla `title`: ilki birincil, diğerleri subtitle alanına akar.
 - `label` meta etiketini override eder; yoksa `header` kullanılır.
 - `render` tablo ve kart için ortaktır.
@@ -464,7 +472,10 @@ Paket altyapısı aynı kalır:
 - toolbar / pagination / filters / sort / export
 
 `@card-click="{ data, originalEvent }"` kart gövdesi tıklamasıdır.
-Checkbox, aksiyon ve expand `stopPropagation` kullanır; seçim ayrıdır.
+Checkbox, aksiyon, expand ve diğer interactive kontroller `card-click`
+üretmez; seçim ayrıdır. `@card-click` bağlandığında kart Enter/Space ile
+de açılır. Kartın kendisi `role="button"` yapılmaz (iç kontrollerle iç içe
+etkileşimli öğe olmasın).
 
 ### Kart UX özeti
 

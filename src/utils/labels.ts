@@ -36,4 +36,5 @@ export const DATATABLE_LABELS = {
     viewMode: 'Görünüm',
     viewTable: 'Tablo görünümü',
     viewCards: 'Kart görünümü',
+    cardClick: 'Kaydı aç',
 } as const;

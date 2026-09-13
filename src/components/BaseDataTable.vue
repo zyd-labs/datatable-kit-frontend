@@ -21,8 +21,9 @@
             :card-layout="cardLayout"
             :card-min-width="cardMinWidth"
             :card-gap="cardGap"
-            :show-view-toggle="showViewToggle"
-            :view-mode="resolvedPresentation"
+            :show-view-toggle="showViewToggleAvailable"
+            :view-mode="viewModeState"
+            :card-click-enabled="cardClickEnabled"
             @update:global-search-value="onGlobalSearchValueUpdate"
             @update:filters="onMobileFiltersUpdate"
             @update:view-mode="setViewMode"
@@ -77,8 +78,8 @@
             :selected-rows="selectedRows"
             :expanded-rows="expandedRowsModel"
             :active-filter-count="activeFilterCount"
-            :show-view-toggle="showViewToggle"
-            :view-mode="resolvedPresentation"
+            :show-view-toggle="showViewToggleAvailable"
+            :view-mode="viewModeState"
             @page="onPage"
             @sort="onSort"
             @filter="onFilter"
@@ -162,7 +163,7 @@ import type { LookupOption } from '@zyd-labs/primevue-lookup';
 import { useMediaQuery } from '@vueuse/core';
 import { Button, Popover } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, getCurrentInstance, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import type {
@@ -196,7 +197,12 @@ import {
     isConstraintValueEmpty,
 } from '../utils/filterPayload';
 import { DATATABLE_LABELS } from '../utils/labels';
-import { DEFAULT_CARD_GAP, DEFAULT_CARD_MIN_WIDTH, resolvePresentationMode } from '../utils/viewMode';
+import {
+    DEFAULT_CARD_GAP,
+    DEFAULT_CARD_MIN_WIDTH,
+    isViewToggleAvailable,
+    resolvePresentationMode,
+} from '../utils/viewMode';
 import DataTableCards from './internal/DataTableCards.vue';
 import DataTableDesktop from './internal/DataTableDesktop.vue';
 
@@ -259,13 +265,13 @@ const clearSelection = (): void => {
 
 const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
 const viewModeState = ref<DataViewMode>(props.viewMode);
+const instance = getCurrentInstance();
+const cardClickEnabled = instance?.vnode.props?.onCardClick != null;
 
 watch(
     () => props.viewMode,
     (value) => {
-        if (value !== viewModeState.value) {
-            viewModeState.value = value;
-        }
+        viewModeState.value = value;
     },
 );
 
@@ -287,6 +293,14 @@ const resolvedPresentation = computed(() => {
 });
 
 const useCardsPresentation = computed(() => resolvedPresentation.value === 'cards');
+
+const showViewToggleAvailable = computed(() => {
+    return isViewToggleAvailable(
+        props.showViewToggle,
+        props.responsiveMode,
+        isMobileViewport.value,
+    );
+});
 
 const storageKey = computed(() => `dt-columns-${props.tableKey}`);
 

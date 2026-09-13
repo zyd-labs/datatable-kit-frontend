@@ -3,12 +3,9 @@
         class="rounded-lg border border-surface-200 bg-surface-0 p-3 dark:border-surface-700 dark:bg-surface-900"
         :class="{
             'ring-1 ring-primary': isSelected && selectionMode === 'single',
-            'cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none': cardClickEnabled,
+            'cursor-pointer': cardClickable,
         }"
-        :tabindex="cardClickEnabled ? 0 : undefined"
-        :aria-label="cardClickAriaLabel"
-        @click="onCardClick"
-        @keydown="onCardKeydown"
+        @click="onCardBodyClick"
     >
         <div class="flex items-start gap-3">
             <div
@@ -135,9 +132,8 @@
                 </div>
 
                 <div
-                    v-if="hasExpansion || hasActions"
+                    v-if="hasFooter"
                     class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-surface-200 pt-3 dark:border-surface-700"
-                    @keydown.stop
                 >
                     <Button
                         v-if="hasExpansion"
@@ -153,11 +149,22 @@
                     <div v-else></div>
 
                     <div
-                        v-if="hasActions"
+                        v-if="hasActions || cardClickable"
                         class="flex flex-wrap items-center justify-end gap-2"
                         @click.stop
                     >
-                        <slot name="actions" :data="data"></slot>
+                        <Button
+                            v-if="cardClickable"
+                            type="button"
+                            icon="pi pi-arrow-right"
+                            text
+                            size="small"
+                            class="min-h-11 min-w-11"
+                            :aria-label="labels.cardClick"
+                            v-tooltip="labels.cardClick"
+                            @click.stop="onOpenClick"
+                        />
+                        <slot v-if="hasActions" name="actions" :data="data"></slot>
                     </div>
                 </div>
 
@@ -196,9 +203,9 @@ const props = withDefaults(defineProps<{
     isSelected: boolean;
     isExpanded: boolean;
     hasExpansion: boolean;
-    cardClickEnabled?: boolean;
+    cardClickable?: boolean;
 }>(), {
-    cardClickEnabled: false,
+    cardClickable: false,
 });
 
 const emit = defineEmits<{
@@ -213,6 +220,7 @@ const labels = DATATABLE_LABELS;
 const hasCanonicalCardSlot = computed(() => Boolean(slots.card));
 const hasCustomCard = computed(() => Boolean(slots.card || slots['mobile-card']));
 const hasActions = computed(() => Boolean(slots.actions));
+const hasFooter = computed(() => props.hasExpansion || hasActions.value || props.cardClickable);
 const layout = computed(() => buildCardLayout(props.columns));
 
 const toggleSelection = (): void => {
@@ -251,22 +259,6 @@ const visibleMetas = computed(() => {
 
 const selectionAriaLabel = computed(() => {
     return props.isSelected ? 'Seçimi kaldır' : 'Satırı seç';
-});
-
-const cardClickAriaLabel = computed(() => {
-    if (!props.cardClickEnabled) {
-        return undefined;
-    }
-
-    const titleText = layout.value.titles
-        .map((item) => resolveDisplay(item.column))
-        .find((value) => Boolean(value));
-
-    if (titleText) {
-        return `${titleText}. ${labels.cardClick}`;
-    }
-
-    return labels.cardClick;
 });
 
 const INTERACTIVE_TAGS = new Set([
@@ -381,7 +373,11 @@ const emitCardClick = (event: Event): void => {
     });
 };
 
-const onCardClick = (event: Event): void => {
+const onCardBodyClick = (event: Event): void => {
+    if (!props.cardClickable) {
+        return;
+    }
+
     if (isNestedInteractiveClick(event)) {
         return;
     }
@@ -389,20 +385,7 @@ const onCardClick = (event: Event): void => {
     emitCardClick(event);
 };
 
-const onCardKeydown = (event: KeyboardEvent): void => {
-    if (!props.cardClickEnabled) {
-        return;
-    }
-
-    if (event.target !== event.currentTarget) {
-        return;
-    }
-
-    if (event.key !== 'Enter' && event.key !== ' ') {
-        return;
-    }
-
-    event.preventDefault();
+const onOpenClick = (event: Event): void => {
     emitCardClick(event);
 };
 </script>

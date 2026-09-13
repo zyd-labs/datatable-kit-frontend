@@ -22,8 +22,8 @@
             :card-min-width="cardMinWidth"
             :card-gap="cardGap"
             :show-view-toggle="showViewToggleAvailable"
-            :view-mode="viewModeState"
-            :card-click-enabled="cardClickEnabled"
+            :view-mode="effectiveViewMode"
+            :card-clickable="cardClickable"
             @update:global-search-value="onGlobalSearchValueUpdate"
             @update:filters="onMobileFiltersUpdate"
             @update:view-mode="setViewMode"
@@ -79,7 +79,7 @@
             :expanded-rows="expandedRowsModel"
             :active-filter-count="activeFilterCount"
             :show-view-toggle="showViewToggleAvailable"
-            :view-mode="viewModeState"
+            :view-mode="effectiveViewMode"
             @page="onPage"
             @sort="onSort"
             @filter="onFilter"
@@ -163,7 +163,7 @@ import type { LookupOption } from '@zyd-labs/primevue-lookup';
 import { useMediaQuery } from '@vueuse/core';
 import { Button, Popover } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, getCurrentInstance, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import type {
@@ -220,21 +220,24 @@ const props = withDefaults(defineProps<{
     responsiveMode?: ResponsiveMode;
     mobileBreakpoint?: number;
     viewMode?: DataViewMode;
+    defaultViewMode?: DataViewMode;
     showViewToggle?: boolean;
     cardLayout?: CardLayout;
     cardMinWidth?: number;
     cardGap?: number;
+    cardClickable?: boolean;
 }>(), {
     defaultRows: 10,
     actionsHeader: DATATABLE_LABELS.actions,
     selectionMode: undefined,
     responsiveMode: 'table',
     mobileBreakpoint: 768,
-    viewMode: 'table',
+    defaultViewMode: 'table',
     showViewToggle: false,
     cardLayout: 'list',
     cardMinWidth: DEFAULT_CARD_MIN_WIDTH,
     cardGap: DEFAULT_CARD_GAP,
+    cardClickable: false,
 });
 
 const emit = defineEmits<{
@@ -264,31 +267,27 @@ const clearSelection = (): void => {
 };
 
 const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
-const viewModeState = ref<DataViewMode>(props.viewMode);
-const instance = getCurrentInstance();
-const vnodeProps = instance?.vnode.props as Record<string, unknown> | undefined;
-// Setup-time snapshot only. Not reactive to later listener attach/detach.
-const cardClickEnabled = vnodeProps?.onCardClick != null || vnodeProps?.onCardClickOnce != null;
+const internalViewMode = ref<DataViewMode>(props.defaultViewMode);
 
-watch(
-    () => props.viewMode,
-    (value) => {
-        viewModeState.value = value;
-    },
-);
+const effectiveViewMode = computed<DataViewMode>(() => {
+    return props.viewMode ?? internalViewMode.value;
+});
 
 const setViewMode = (value: DataViewMode): void => {
-    if (viewModeState.value === value) {
+    if (effectiveViewMode.value === value) {
         return;
     }
 
-    viewModeState.value = value;
+    if (props.viewMode === undefined) {
+        internalViewMode.value = value;
+    }
+
     emit('update:viewMode', value);
 };
 
 const resolvedPresentation = computed(() => {
     return resolvePresentationMode(
-        viewModeState.value,
+        effectiveViewMode.value,
         props.responsiveMode,
         isMobileViewport.value,
     );

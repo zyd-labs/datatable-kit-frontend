@@ -175,15 +175,27 @@ Sunum (`table` / `cards`) ile veri durumu ayrıdır. Kart görünümü yeni bir 
 type DataViewMode = 'table' | 'cards'
 ```
 
-| `viewMode` | `responsiveMode` | Sonuç |
+| Effective view | `responsiveMode` | Sonuç |
 | --- | --- | --- |
 | `table` (varsayılan) | `table` (varsayılan) | Her viewport’ta tablo |
 | `table` | `adaptive` | Desktop tablo, breakpoint altında kart |
 | `cards` | herhangi | Her viewport’ta kart |
 
-`viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir. Görünüm tercihi pakette `localStorage`’a yazılmaz; kalıcılık istiyorsanız `v-model:viewMode` ile consumer tarafında tutun.
+`viewMode` verilmişse component **controlled** çalışır. Verilmemişse **uncontrolled** çalışır; başlangıç `defaultViewMode` (varsayılan `'table'`) ile belirlenir. `v-model:view-mode` controlled kullanımdır.
 
-`showViewToggle`, **adaptive mobil kart zorlaması** sırasında gizlenir: o durumda tablo sunumu yoktur, Table düğmesi yanıltıcı olur. Desktop’ta ve `responsiveMode="table"` iken tablo ↔ kart geçişi çalışır.
+```vue
+<!-- Controlled -->
+<BaseDataTable v-model:view-mode="viewMode" show-view-toggle />
+
+<!-- Uncontrolled -->
+<BaseDataTable default-view-mode="cards" show-view-toggle />
+```
+
+Static `:view-mode="'cards'"` controlled’dır: toggle `update:viewMode` emit eder, parent değeri değiştirmezse görünüm cards kalır.
+
+`viewMode="cards"` (veya uncontrolled `default-view-mode="cards"` sonucu) sunumda `responsiveMode`’dan önceliklidir. Görünüm tercihi pakette `localStorage`’a yazılmaz.
+
+`showViewToggle`, **adaptive mobil kart zorlaması** sırasında gizlenir: o durumda tablo sunumu yoktur. Desktop’ta ve `responsiveMode="table"` iken tablo ↔ kart geçişi çalışır.
 
 ```vue
 <script setup lang="ts">
@@ -243,6 +255,7 @@ const columns: ColumnDef[] = [
 - `cardMinWidth`: grid için minimum kart genişliği, varsayılan `320`
 - `cardGap`: kartlar arası boşluk (px), varsayılan `12`
 - `showViewToggle`: tablo/kart ikon düğmesi (`pi-list` / `pi-th-large`). `responsiveMode="adaptive"` ve mobil viewport’ta gösterilmez.
+- `cardClickable`: kart gövdesini tıklanabilir yapar ve erişilebilir “Kaydı aç” düğmesi gösterir. Varsayılan `false`. `@card-click` listener’ı bu davranışı değiştirmez.
 
 Grid, uygulama-özel kolon sayısı hardcode etmez:
 
@@ -271,9 +284,19 @@ Kart görünürlüğü `card.visible` → `mobile.visible` → `column.visible !
 - `#mobile-card` — uyumluluk alias’ı (`#card` yoksa kullanılır)
 - `#header-actions`, `#actions`, `#expansion`, `#empty` — tablo ile aynı sözleşmeler
 
-`@card-click` payload: `{ data, originalEvent }`. Event, listener tespitinden bağımsız emit edilir. Checkbox, aksiyon, expand, `summary`, `contenteditable` ve diğer native/ARIA odaklanabilir kontroller `card-click` üretmez. Seçim ile kart tıklama ayrıdır.
+`@card-click` payload: `{ data, originalEvent }`. Seçim ile kart tıklama ayrıdır.
 
-Kurulum anında `@card-click` (veya `.once`) varsa kart klavye ile de açılır (Enter/Space), `tabindex="0"` ve focus halkası alır. Bu tespit reaktif değildir. Kart `role="button"` yapılmaz.
+```vue
+<BaseDataTable
+    card-clickable
+    @card-click="openRecord"
+/>
+```
+
+- `cardClickable=false` (varsayılan): kart presentation container’dır; focusable değildir; “Kaydı aç” düğmesi yoktur.
+- `cardClickable=true`: non-interactive gövdeye mouse click `card-click` üretir; footer’da gerçek `Kaydı aç` button vardır (klavye native button davranışı).
+- `@card-click` listener varlığı component davranışını **değiştirmez**. Event yalnızca `cardClickable` ve kullanıcı etkileşimiyle üretilir.
+- Checkbox, aksiyon, expand, link, `summary`, `contenteditable` ve diğer native/ARIA odaklanabilir kontroller gövde `card-click` üretmez. “Kaydı aç” kendi handler’ı ile aynı eventi emit eder.
 
 ## Responsive / Mobile Mode
 

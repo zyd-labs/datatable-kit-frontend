@@ -96,7 +96,7 @@
                 :is-selected="isRowSelected(row)"
                 :is-expanded="isRowExpanded(row)"
                 :has-expansion="hasExpansion"
-                :card-click-enabled="cardClickEnabled"
+                :card-clickable="cardClickable"
                 @toggle-selection="emit('toggle-selection', row)"
                 @toggle-expand="emit('toggle-expand', row)"
                 @card-click="emit('card-click', $event)"
@@ -185,7 +185,7 @@ const props = withDefaults(defineProps<{
     cardGap?: number;
     showViewToggle?: boolean;
     viewMode?: DataViewMode;
-    cardClickEnabled?: boolean;
+    cardClickable?: boolean;
     rowsPerPageOptions?: number[];
 }>(), {
     cardLayout: 'list',
@@ -193,7 +193,7 @@ const props = withDefaults(defineProps<{
     cardGap: DEFAULT_CARD_GAP,
     showViewToggle: false,
     viewMode: 'table',
-    cardClickEnabled: false,
+    cardClickable: false,
     rowsPerPageOptions: () => [...DATATABLE_ROWS_PER_PAGE_OPTIONS],
 });
 

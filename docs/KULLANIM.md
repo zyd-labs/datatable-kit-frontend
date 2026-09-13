@@ -138,11 +138,13 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `selectionMode` (opsiyonel): `'single' | 'multiple'`.
 - `responsiveMode` (opsiyonel, varsayılan `'table'`): `'table' | 'adaptive'`.
 - `mobileBreakpoint` (opsiyonel, varsayılan `768`): Adaptive modda mobil eşik (px).
-- `viewMode` (opsiyonel, varsayılan `'table'`): `'table' | 'cards'`. `v-model:viewMode` destekler.
+- `viewMode` (opsiyonel): `'table' | 'cards'`. Verilirse controlled. `v-model:viewMode` destekler.
+- `defaultViewMode` (opsiyonel, varsayılan `'table'`): Yalnızca uncontrolled başlangıç değeri.
 - `showViewToggle` (opsiyonel, varsayılan `false`): Tablo/kart görünüm düğmesini gösterir. Adaptive mobil kart zorlamasında gizlenir.
 - `cardLayout` (opsiyonel, varsayılan `'list'`): `'list' | 'grid'`.
 - `cardMinWidth` (opsiyonel, varsayılan `320`): Grid kartlarında minimum genişlik (px).
 - `cardGap` (opsiyonel, varsayılan `12`): Kartlar arası boşluk (px).
+- `cardClickable` (opsiyonel, varsayılan `false`): Kart gövdesi tıklanabilir olur ve “Kaydı aç” düğmesi gösterilir.
 
 ### Event'ler
 
@@ -151,7 +153,7 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.
 - `update:expandedRows(value)`: Expand state iki yönlü bağlandığında tetiklenir.
 - `update:viewMode(value)`: Tablo/kart sunumu değiştiğinde tetiklenir.
-- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir. Kurulum anında listener varsa Enter/Space ve focus halkası da bağlanır; event her durumda emit edilir.
+- `card-click({ data, originalEvent })`: Kart gövdesi veya “Kaydı aç” düğmesi. Seçim ile aynı şey değildir. Yalnızca `cardClickable=true` iken üretilir; listener varlığı davranışı değiştirmez.
 
 ### Slot'lar
 
@@ -366,21 +368,42 @@ ve gereksiz refetch tetiklemez.
 
 ### `viewMode`
 
-Varsayılan `'table'`. `v-model:view-mode` desteklenir. Paket görünümü
+`viewMode` verilmişse **controlled**, verilmemişse **uncontrolled**. Uncontrolled
+başlangıç `defaultViewMode` (varsayılan `'table'`). Paket görünümü
 `localStorage`’a yazmaz.
 
-| `viewMode` | `responsiveMode` | Sonuç |
+```vue
+<!-- Controlled -->
+<BaseDataTable v-model:view-mode="viewMode" />
+
+<BaseDataTable
+  :view-mode="viewMode"
+  @update:view-mode="viewMode = $event"
+/>
+
+<!-- Uncontrolled -->
+<BaseDataTable
+  default-view-mode="cards"
+  show-view-toggle
+/>
+```
+
+Static `view-mode="cards"` controlled’dır: Table’a basınca `update:viewMode('table')`
+emit edilir; parent değeri değiştirmezse görünüm cards kalır.
+
+| Effective view | `responsiveMode` | Sonuç |
 | --- | --- | --- |
 | `table` | `table` | Her viewport’ta tablo |
 | `table` | `adaptive` | Desktop tablo, `mobileBreakpoint` altında kart |
 | `cards` | herhangi | Her viewport’ta kart |
 
-`viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir.
+`viewMode="cards"` (controlled) veya uncontrolled cards başlangıcı sunumda
+`responsiveMode`’dan önceliklidir.
 
 `showViewToggle` yalnızca tablo sunumunun gerçekten seçilebildiği yerde görünür.
 `responsiveMode="adaptive"` + mobil viewport kartı zorlar; Table düğmesi orada
 yanıltıcı olacağı için toggle gizlenir. Desktop explicit table/cards geçişi
-ve `viewMode="cards"` (her viewport) değişmez.
+değişmez.
 
 ```vue
 <BaseDataTable
@@ -402,6 +425,7 @@ ve `viewMode="cards"` (her viewport) değişmez.
 - `cardLayout`: `'list'` (varsayılan) veya `'grid'`.
 - `cardMinWidth`: grid minimum genişliği, varsayılan `320`.
 - `cardGap`: px cinsinden boşluk, varsayılan `12`.
+- `cardClickable`: kart tıklanabilirliği ve “Kaydı aç” düğmesi. Varsayılan `false`.
 
 Grid, sabit kolon sayısı hardcode etmez:
 
@@ -471,12 +495,22 @@ Paket altyapısı aynı kalır:
 - actions
 - toolbar / pagination / filters / sort / export
 
-`@card-click="{ data, originalEvent }"` kart gövdesi tıklamasıdır ve listener
-tespitinden bağımsız emit edilir.
-Checkbox, aksiyon, expand ve diğer interactive/odaklanabilir kontroller
-`card-click` üretmez; seçim ayrıdır. Kurulum anında `@card-click` (veya `.once`)
-varsa kart Enter/Space ile de açılır. Bu tespit reaktif değildir. Kartın
-kendisi `role="button"` yapılmaz.
+`@card-click="{ data, originalEvent }"` kart gövdesi veya “Kaydı aç” düğmesidir.
+
+```vue
+<BaseDataTable
+  card-clickable
+  @card-click="openRecord"
+/>
+```
+
+- `cardClickable=false`: article focusable değildir, open button yoktur.
+- `cardClickable=true`: non-interactive gövde mouse click event üretir;
+  footer’da gerçek `Kaydı aç` button vardır (Enter/Space native).
+- `@card-click` listener varlığı davranışı değiştirmez.
+- Checkbox, aksiyon, expand, link ve diğer interactive kontroller gövde
+  `card-click` üretmez; “Kaydı aç” kendi handler’ı ile aynı eventi emit eder.
+- Kart root `role="button"` / `tabindex` taşımaz.
 
 ### Kart UX özeti
 

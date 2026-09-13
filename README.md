@@ -271,9 +271,9 @@ Kart görünürlüğü `card.visible` → `mobile.visible` → `column.visible !
 - `#mobile-card` — uyumluluk alias’ı (`#card` yoksa kullanılır)
 - `#header-actions`, `#actions`, `#expansion`, `#empty` — tablo ile aynı sözleşmeler
 
-`@card-click` payload: `{ data, originalEvent }`. Checkbox, aksiyon, expand ve diğer native/ARIA kontroller `card-click` üretmez. Seçim ile kart tıklama ayrıdır.
+`@card-click` payload: `{ data, originalEvent }`. Event, listener tespitinden bağımsız emit edilir. Checkbox, aksiyon, expand, `summary`, `contenteditable` ve diğer native/ARIA odaklanabilir kontroller `card-click` üretmez. Seçim ile kart tıklama ayrıdır.
 
-Listener bağlandığında kart klavye ile de açılır (Enter/Space), `tabindex="0"` ve focus halkası alır. Kart `role="button"` yapılmaz; içindeki seçim/aksiyon kontrolleri ayrı tab stop kalır.
+Kurulum anında `@card-click` (veya `.once`) varsa kart klavye ile de açılır (Enter/Space), `tabindex="0"` ve focus halkası alır. Bu tespit reaktif değildir. Kart `role="button"` yapılmaz.
 
 ## Responsive / Mobile Mode
 

@@ -269,26 +269,112 @@ const cardClickAriaLabel = computed(() => {
     return labels.cardClick;
 });
 
-const INTERACTIVE_CARD_CLICK_BLOCKER = 'button, a, input, textarea, select, [role="button"], [role="checkbox"], [role="radio"]';
+const INTERACTIVE_TAGS = new Set([
+    'A',
+    'AREA',
+    'AUDIO',
+    'BUTTON',
+    'EMBED',
+    'IFRAME',
+    'INPUT',
+    'OBJECT',
+    'SELECT',
+    'SUMMARY',
+    'TEXTAREA',
+    'VIDEO',
+]);
+
+const INTERACTIVE_ROLES = new Set([
+    'button',
+    'checkbox',
+    'combobox',
+    'grid',
+    'gridcell',
+    'link',
+    'listbox',
+    'menu',
+    'menubar',
+    'menuitem',
+    'menuitemcheckbox',
+    'menuitemradio',
+    'option',
+    'radio',
+    'scrollbar',
+    'searchbox',
+    'slider',
+    'spinbutton',
+    'switch',
+    'tab',
+    'tablist',
+    'textbox',
+    'tree',
+    'treegrid',
+    'treeitem',
+]);
+
+const resolveEventElement = (event: Event): Element | null => {
+    const target = event.target;
+    if (target instanceof Element) {
+        return target;
+    }
+
+    if (target instanceof Node) {
+        return target.parentElement;
+    }
+
+    return null;
+};
+
+const hasExplicitTabIndex = (element: Element): boolean => {
+    const raw = element.getAttribute('tabindex');
+    if (raw === null) {
+        return false;
+    }
+
+    const value = Number(raw);
+    return !Number.isNaN(value) && value >= 0;
+};
+
+const isInteractiveElement = (element: Element): boolean => {
+    if (INTERACTIVE_TAGS.has(element.tagName)) {
+        return true;
+    }
+
+    if (element instanceof HTMLElement && element.isContentEditable) {
+        return true;
+    }
+
+    const role = element.getAttribute('role');
+    if (role && INTERACTIVE_ROLES.has(role)) {
+        return true;
+    }
+
+    return hasExplicitTabIndex(element);
+};
+
+const isNestedInteractiveClick = (event: Event): boolean => {
+    const current = event.currentTarget;
+    if (!(current instanceof Element)) {
+        return false;
+    }
+
+    let node = resolveEventElement(event);
+    while (node && node !== current) {
+        if (isInteractiveElement(node)) {
+            return true;
+        }
+
+        node = node.parentElement;
+    }
+
+    return false;
+};
 
 const onMultipleSelect = (): void => {
     emit('toggle-selection');
 };
 
-const isNestedInteractiveClick = (event: Event): boolean => {
-    const target = event.target;
-    if (!(target instanceof Element) || target === event.currentTarget) {
-        return false;
-    }
-
-    return Boolean(target.closest(INTERACTIVE_CARD_CLICK_BLOCKER));
-};
-
 const emitCardClick = (event: Event): void => {
-    if (!props.cardClickEnabled) {
-        return;
-    }
-
     emit('card-click', {
         data: props.data,
         originalEvent: event,

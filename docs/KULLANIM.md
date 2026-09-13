@@ -151,7 +151,7 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.
 - `update:expandedRows(value)`: Expand state iki yönlü bağlandığında tetiklenir.
 - `update:viewMode(value)`: Tablo/kart sunumu değiştiğinde tetiklenir.
-- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir. Listener varsa Enter/Space ve focus halkası da bağlanır.
+- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir. Kurulum anında listener varsa Enter/Space ve focus halkası da bağlanır; event her durumda emit edilir.
 
 ### Slot'lar
 
@@ -471,11 +471,12 @@ Paket altyapısı aynı kalır:
 - actions
 - toolbar / pagination / filters / sort / export
 
-`@card-click="{ data, originalEvent }"` kart gövdesi tıklamasıdır.
-Checkbox, aksiyon, expand ve diğer interactive kontroller `card-click`
-üretmez; seçim ayrıdır. `@card-click` bağlandığında kart Enter/Space ile
-de açılır. Kartın kendisi `role="button"` yapılmaz (iç kontrollerle iç içe
-etkileşimli öğe olmasın).
+`@card-click="{ data, originalEvent }"` kart gövdesi tıklamasıdır ve listener
+tespitinden bağımsız emit edilir.
+Checkbox, aksiyon, expand ve diğer interactive/odaklanabilir kontroller
+`card-click` üretmez; seçim ayrıdır. Kurulum anında `@card-click` (veya `.once`)
+varsa kart Enter/Space ile de açılır. Bu tespit reaktif değildir. Kartın
+kendisi `role="button"` yapılmaz.
 
 ### Kart UX özeti
 

@@ -266,7 +266,9 @@ const clearSelection = (): void => {
 const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
 const viewModeState = ref<DataViewMode>(props.viewMode);
 const instance = getCurrentInstance();
-const cardClickEnabled = instance?.vnode.props?.onCardClick != null;
+const vnodeProps = instance?.vnode.props as Record<string, unknown> | undefined;
+// Setup-time snapshot only. Not reactive to later listener attach/detach.
+const cardClickEnabled = vnodeProps?.onCardClick != null || vnodeProps?.onCardClickOnce != null;
 
 watch(
     () => props.viewMode,

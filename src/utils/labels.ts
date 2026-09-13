@@ -33,4 +33,7 @@ export const DATATABLE_LABELS = {
     searchPlaceholder: 'Ara...',
     valuePlaceholder: 'Değer',
     moreActions: 'Diğer işlemler',
+    viewMode: 'Görünüm',
+    viewTable: 'Tablo görünümü',
+    viewCards: 'Kart görünümü',
 } as const;

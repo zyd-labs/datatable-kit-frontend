@@ -24,7 +24,7 @@ Paket, backend'den aşağıdaki formatta yanıt bekler:
 ## Kurulum
 
 ```bash
-npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.3.0
+npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.4.0
 ```
 
 Peer dependency uyumunu kontrol edin:
@@ -83,7 +83,7 @@ Paket girişinden (`@zyd-labs/datatable-kit`) erişilenler:
 - `resolveDatatableHttpClient()`
 - `hasDatatableHttpClient()`
 - `resetDatatableHttpClient()`
-- Tüm datatable type'ları (`ColumnDef`, `ColumnMobileConfig`, `ColumnMobileRole`, `ResponsiveMode`, vb.)
+- Tüm datatable type'ları (`ColumnDef`, `ColumnCardConfig`, `ColumnCardRole`, `ColumnMobileConfig`, `ColumnMobileRole`, `DataViewMode`, `CardLayout`, `ResponsiveMode`, vb.)
 
 ## 4) `BaseDataTable` Kullanımı
 
@@ -138,6 +138,11 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `selectionMode` (opsiyonel): `'single' | 'multiple'`.
 - `responsiveMode` (opsiyonel, varsayılan `'table'`): `'table' | 'adaptive'`.
 - `mobileBreakpoint` (opsiyonel, varsayılan `768`): Adaptive modda mobil eşik (px).
+- `viewMode` (opsiyonel, varsayılan `'table'`): `'table' | 'cards'`. `v-model:viewMode` destekler.
+- `showViewToggle` (opsiyonel, varsayılan `false`): Tablo/kart görünüm düğmesini gösterir.
+- `cardLayout` (opsiyonel, varsayılan `'list'`): `'list' | 'grid'`.
+- `cardMinWidth` (opsiyonel, varsayılan `320`): Grid kartlarında minimum genişlik (px).
+- `cardGap` (opsiyonel, varsayılan `12`): Kartlar arası boşluk (px).
 
 ### Event'ler
 
@@ -145,14 +150,17 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 - `filter-change(filters)`: Filtre değiştiğinde tetiklenir.
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.
 - `update:expandedRows(value)`: Expand state iki yönlü bağlandığında tetiklenir.
+- `update:viewMode(value)`: Tablo/kart sunumu değiştiğinde tetiklenir.
+- `card-click({ data, originalEvent })`: Kart gövdesine tıklanınca tetiklenir. Seçim ile aynı şey değildir.
 
 ### Slot'lar
 
 - `header-actions`: Üst alandaki özel aksiyonlar.
-- `actions`: Satır bazlı aksiyon alanı (desktop sütun / mobil kart).
+- `actions`: Satır bazlı aksiyon alanı (tablo sütunu / kart).
 - `expansion`: Satır detay içeriği.
 - `empty`: Boş durum içeriği (`hasActiveFilters`, `globalFilter` slot props).
-- `mobile-card`: Adaptive mobil kart içeriğini özelleştirir.
+- `card`: Kanonik kart içeriği (`data`, `index`, `selected`, `expanded`, `columns`, `toggleSelection`, `toggleExpand`).
+- `mobile-card`: Uyumluluk alias’ı; `#card` yoksa kullanılır. Yeni kod için `#card` tercih edin.
 
 ### `defineExpose` ile açılan metotlar
 
@@ -180,6 +188,8 @@ merkezi olarak kontrol edilir.
 - `render`: Hücre özelleştirmesi (fonksiyon veya Vue component).
 - `defaultFilter`: İlk yükleme filtresi.
 - `visible`: Başlangıçta görünürlük.
+- `card`: Kart sunumu meta (`ColumnCardConfig`). Yoksa `mobile` fallback.
+- `mobile`: Adaptive mobil / kart uyumluluk meta (`ColumnMobileConfig`).
 
 ## 6) Filtre Tipleri ve Davranışları
 
@@ -348,10 +358,52 @@ Neden: `localStorage` içinde `dt-columns-{tableKey}` kayıtlı.
 
 Çözüm: İlgili key'i temizleyin veya `tableKey` değiştirin.
 
-## 13) Responsive / Adaptive Mobil Mod
+## 13) View Mode, Kart Sunumu ve Adaptive Mobil
 
-`responsiveMode` varsayılanı `"table"`dır. Mevcut consumer’lar yükseltme sonrası
-davranış değişikliği görmez.
+Sunum (`table` / `cards`) ile sunucu durumu ayrıdır. Tablo ↔ kart geçişi
+`first` / `rows` / `filters` / `globalFilter` / `sort` / `selection` sıfırlamaz
+ve gereksiz refetch tetiklemez.
+
+### `viewMode`
+
+Varsayılan `'table'`. `v-model:view-mode` desteklenir. Paket görünümü
+`localStorage`’a yazmaz.
+
+| `viewMode` | `responsiveMode` | Sonuç |
+| --- | --- | --- |
+| `table` | `table` | Her viewport’ta tablo |
+| `table` | `adaptive` | Desktop tablo, `mobileBreakpoint` altında kart |
+| `cards` | herhangi | Her viewport’ta kart |
+
+`viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir.
+
+```vue
+<BaseDataTable
+  v-model:view-mode="viewMode"
+  table-key="operations"
+  endpoint="/operations"
+  :columns="columns"
+  show-view-toggle
+  card-layout="list"
+>
+  <template #card="{ data }">
+    <!-- domain kartı consumer’dadır -->
+  </template>
+</BaseDataTable>
+```
+
+- `showViewToggle`: ikon-only tablo/kart düğmesi (`pi-list` / `pi-th-large`).
+- `cardLayout`: `'list'` (varsayılan) veya `'grid'`.
+- `cardMinWidth`: grid minimum genişliği, varsayılan `320`.
+- `cardGap`: px cinsinden boşluk, varsayılan `12`.
+
+Grid, sabit kolon sayısı hardcode etmez:
+
+```css
+grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-width)), 1fr));
+```
+
+### Adaptive (mevcut davranış, kırılmaz)
 
 ```vue
 <BaseDataTable
@@ -363,18 +415,18 @@ davranış değişikliği görmez.
 />
 ```
 
-### Davranış
-
-- `responsiveMode="table"`: yalnızca mevcut desktop DataTable.
-- `responsiveMode="adaptive"` + viewport `<= mobileBreakpoint`: mobil kart listesi.
+- `responsiveMode="table"`: yalnızca desktop DataTable.
+- `responsiveMode="adaptive"` + viewport `<= mobileBreakpoint`: kart listesi.
 - `responsiveMode="adaptive"` + viewport `> mobileBreakpoint`: desktop DataTable.
 - Aynı anda iki sunum mount edilmez.
 - Backend sözleşmesi değişmez (`first`, `rows`, `filters`, `global`, `sortField`, `sortOrder`, `export`).
 
-### `ColumnMobileConfig`
+### `ColumnCardConfig` / `ColumnMobileConfig`
+
+Kart meta çözümü: `column.card` → `column.mobile` → otomatik layout.
 
 ```ts
-mobile?: {
+card?: {
   visible?: boolean;
   role?: 'title' | 'subtitle' | 'meta' | 'badge';
   order?: number;
@@ -382,37 +434,47 @@ mobile?: {
 }
 ```
 
+`mobile` aynı şekildedir ve mevcut consumer’lar için geçerlidir. İkisini
+hemen kopyalamanız gerekmez.
+
 Kurallar:
 
-- `mobile.visible === false`: mobil kartta asla gösterilmez.
-- `mobile.visible === true`: mobil için uygundur.
-- `mobile.visible` tanımsızsa: `column.visible !== false` kullanılır.
-- Desktop MultiSelect ile gizlenen sütunlar mobil kart kimliğini bozmaz.
-- `mobile.order` varsa sıralama buna göre; yoksa kolon sırası korunur.
-- `title` yoksa ilk uygun kolon title olur.
+- `card.visible ?? mobile.visible === false`: kartta gösterilmez.
+- `visible === true`: kart için uygundur.
+- `visible` tanımsızsa: `column.visible !== false` kullanılır.
+- Desktop MultiSelect ile gizlenen sütunlar kart kimliğini bozmaz.
+- `order` varsa sıralama buna göre; yoksa kolon sırası korunur.
+- `title` yoksa ilk uygun kolon title, kalanlar meta olur.
 - Birden fazla `title`: ilki birincil, diğerleri subtitle alanına akar.
-- `mobile.label` meta etiketini override eder; yoksa `header` kullanılır.
-- `render` desktop ve mobil için ortaktır.
+- `label` meta etiketini override eder; yoksa `header` kullanılır.
+- `render` tablo ve kart için ortaktır.
 
-### `mobile-card` slot
+### `#card` ve `#mobile-card`
 
-`#mobile-card="{ data, columns }"` generic kart içeriğini tamamen override eder.
+Kanonik slot: `#card="{ data, index, selected, expanded, columns, toggleSelection, toggleExpand }"`.
+
+`#mobile-card` uyumluluk API’sidir. `#card` yoksa alias olarak çalışır.
+Yeni kod `#card` kullanmalıdır.
 
 Paket altyapısı aynı kalır:
 
 - selection chrome
 - expansion
 - actions
-- toolbar / pagination / filters / sort
+- toolbar / pagination / filters / sort / export
 
-### Mobil UX özeti
+`@card-click="{ data, originalEvent }"` kart gövdesi tıklamasıdır.
+Checkbox, aksiyon ve expand `stopPropagation` kullanır; seçim ayrıdır.
 
-- Toolbar: global arama, Filtreler (aktif sayı), Sırala, Yenile, Export
+### Kart UX özeti
+
+- Toolbar: global arama, Filtreler, Sırala, Yenile, Export, isteğe bağlı görünüm düğmesi
 - Filtreler: Drawer + mevcut filter model (live apply)
 - Aktif filtre chip’leri
 - Sıralama: Drawer (artan/azalan + sıralamayı kaldır)
-- Pagination: `1–10 / 127 kayıt` + Önceki/Sonraki + sayfa boyutu
-- Selection / expansion / actions mevcut API ile çalışır
+- Pagination: PrimeVue `Paginator` + `DATATABLE_ROWS_PER_PAGE_OPTIONS`
+- Selection / expansion / actions / empty mevcut API ile çalışır
+- Loading: listede 4, grid’de 6 Skeleton kart
 
 ## 14) Üretim Öncesi Kontrol Listesi
 
@@ -424,4 +486,6 @@ Paket altyapısı aynı kalır:
 - Boş durum, loading ve hata toast davranışları test edildi.
 - `responsiveMode="table"` ile mevcut desktop davranış korundu.
 - `responsiveMode="adaptive"` ile breakpoint üstü/altı sunumlar doğrulandı.
-- Mobil filtre Drawer, sort, pagination, selection ve expansion test edildi.
+- `viewMode="cards"` desktop’ta kart render eder; state korunur.
+- `#card` özel kartı, `#mobile-card` uyumluluk alias’ını doğrulayın.
+- Kart filtre Drawer, sort, pagination, selection ve expansion test edildi.

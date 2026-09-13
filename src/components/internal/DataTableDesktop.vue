@@ -71,6 +71,12 @@
                             v-tooltip="labels.exportExcel"
                             @click="emit('export')"
                         />
+                        <DataTableViewToggle
+                            v-if="showViewToggle"
+                            :model-value="viewMode"
+                            size="small"
+                            @update:model-value="emit('update:viewMode', $event)"
+                        />
                     </div>
 
                     <MultiSelect
@@ -181,7 +187,7 @@ import {
     Skeleton,
 } from 'primevue';
 import { computed, ref } from 'vue';
-import type { ColumnDef, DataTableFilter } from '../../types/datatable';
+import type { ColumnDef, DataTableFilter, DataViewMode } from '../../types/datatable';
 import { DATATABLE_ROWS_PER_PAGE_OPTIONS } from '../../types/datatable';
 import {
     getFilterConfig,
@@ -190,6 +196,7 @@ import {
 import { DATATABLE_LABELS } from '../../utils/labels';
 import DataTableCellRender from './DataTableCellRender';
 import DataTableFilterField from './DataTableFilterField.vue';
+import DataTableViewToggle from './DataTableViewToggle.vue';
 
 const props = withDefaults(defineProps<{
     data: unknown[];
@@ -211,9 +218,13 @@ const props = withDefaults(defineProps<{
     expandedRows: Record<number | string, boolean>;
     activeFilterCount: number;
     rowsPerPageOptions?: number[];
+    showViewToggle?: boolean;
+    viewMode?: DataViewMode;
 }>(), {
     actionsHeader: DATATABLE_LABELS.actions,
     rowsPerPageOptions: () => [...DATATABLE_ROWS_PER_PAGE_OPTIONS],
+    showViewToggle: false,
+    viewMode: 'table',
 });
 
 const emit = defineEmits<{
@@ -229,6 +240,7 @@ const emit = defineEmits<{
     (e: 'update:selectedRows', value: unknown[]): void;
     (e: 'update:expandedRows', value: Record<number | string, boolean>): void;
     (e: 'update:filters', value: Record<string, DataTableFilter>): void;
+    (e: 'update:viewMode', value: DataViewMode): void;
     (e: 'lookup-selection-meta', payload: {
         column: ColumnDef;
         filterModel: { value: unknown; displayValue?: string | string[] | null };

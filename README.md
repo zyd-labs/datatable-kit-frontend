@@ -9,16 +9,17 @@ PrimeVue 4 + Tailwind 4 tabanlı projeler için yeniden kullanılabilir DataTabl
 ## Özellikler
 
 - `BaseDataTable` bileşeni: Sunucu tarafı pagination/sort/filter için hazır şablon.
+- Tablo ve kart sunumu aynı store state’ini paylaşır (`viewMode="table" | "cards"`).
 - Adaptive mobil mod (`responsive-mode="adaptive"`): aynı state modeli ile kart listesi sunumu.
 - `useDatatable` composable: Datatable backend sözleşmesine uygun GET & export çağrılarını basitleştirir.
 - Pinia `useDatatableStore`: Tablolar arası durum yönetimi (`first`, `rows`, `filters`, `sortField` vb.).
 - Http adapter katmanı: Projeye özel axios/fetch wrapper’ınızı kolayca bağlayın.
-- TypeScript desteği: `ColumnDef`, `DataTableState`, `DataTableFilter`, `ColumnMobileConfig` vb. tipler.
+- TypeScript desteği: `ColumnDef`, `DataViewMode`, `ColumnCardConfig`, `ColumnMobileConfig`, `DataTableState` vb. tipler.
 
 ## Kurulum
 
 ```bash
-npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.3.0
+npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.4.0
 # veya pnpm / yarn eşdeğerleri
 ```
 
@@ -166,6 +167,110 @@ const columns: ColumnDef[] = [
 
 `matchMode` otomatik olarak `FilterMatchMode.IN` değerine ayarlanır ve seçilen değerler backend’e dizi olarak gönderilir. Böylece PrimeVue filtre formatını koruyarak çoklu seçim ile filtreleme yapılabilir.
 
+## View Mode (Tablo / Kart)
+
+Sunum (`table` / `cards`) ile veri durumu ayrıdır. Kart görünümü yeni bir fetch/filter/sort sistemi açmaz; `useDatatableStore` içindeki `first`, `rows`, `total`, `filters`, `globalFilter`, `sortField`, `sortOrder`, `loading` aynen kullanılır.
+
+```ts
+type DataViewMode = 'table' | 'cards'
+```
+
+| `viewMode` | `responsiveMode` | Sonuç |
+| --- | --- | --- |
+| `table` (varsayılan) | `table` (varsayılan) | Her viewport’ta tablo |
+| `table` | `adaptive` | Desktop tablo, breakpoint altında kart |
+| `cards` | herhangi | Her viewport’ta kart |
+
+`viewMode="cards"` sunumda `responsiveMode`’dan önceliklidir. Görünüm tercihi pakette `localStorage`’a yazılmaz; kalıcılık istiyorsanız `v-model:viewMode` ile consumer tarafında tutun.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import {
+    BaseDataTable,
+    type ColumnDef,
+    type DataViewMode,
+} from '@zyd-labs/datatable-kit'
+
+const viewMode = ref<DataViewMode>('cards')
+
+const columns: ColumnDef[] = [
+    {
+        field: 'asset_display',
+        header: 'Kayıt',
+        sortable: true,
+        card: { role: 'title', order: 1 },
+    },
+    {
+        field: 'customer_name',
+        header: 'Müşteri',
+        card: { role: 'subtitle', order: 2 },
+    },
+    {
+        field: 'status',
+        header: 'Durum',
+        card: { role: 'badge', order: 3 },
+    },
+    {
+        field: 'active_work',
+        header: 'Aktif İş',
+        card: { role: 'meta', order: 4 },
+    },
+]
+</script>
+
+<template>
+    <BaseDataTable
+        v-model:view-mode="viewMode"
+        table-key="operations"
+        endpoint="/operations"
+        :columns="columns"
+        show-view-toggle
+        card-layout="list"
+    >
+        <template #card="{ data }">
+            <!-- custom operational card -->
+        </template>
+    </BaseDataTable>
+</template>
+```
+
+### Kart layout
+
+- `cardLayout`: `'list'` (varsayılan, tek sütun) veya `'grid'` (`auto-fit` + `cardMinWidth`)
+- `cardMinWidth`: grid için minimum kart genişliği, varsayılan `320`
+- `cardGap`: kartlar arası boşluk (px), varsayılan `12`
+- `showViewToggle`: tablo/kart ikon düğmesi (`pi-list` / `pi-th-large`)
+
+Grid, uygulama-özel kolon sayısı hardcode etmez:
+
+```css
+grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-width)), 1fr));
+```
+
+### Kart sütun meta
+
+`column.card` yoksa `column.mobile` kullanılır; ikisi de yoksa ilk uygun kolon `title`, kalanlar `meta` olur.
+
+```ts
+card?: {
+  visible?: boolean
+  role?: 'title' | 'subtitle' | 'meta' | 'badge'
+  order?: number
+  label?: string
+}
+```
+
+Kart görünürlüğü `card.visible` → `mobile.visible` → `column.visible !== false` sırasıyla çözülür. Desktop MultiSelect ile gizlenen sütunlar kart layout’unu bozmaz.
+
+### Slot’lar
+
+- `#card="{ data, index, selected, expanded, columns, toggleSelection, toggleExpand }"` — kanonik özel kart
+- `#mobile-card` — uyumluluk alias’ı (`#card` yoksa kullanılır)
+- `#header-actions`, `#actions`, `#expansion`, `#empty` — tablo ile aynı sözleşmeler
+
+`@card-click` payload: `{ data, originalEvent }`. Checkbox, aksiyon ve expand `stopPropagation` kullanır; kart tıklama seçim değildir.
+
 ## Responsive / Mobile Mode
 
 `responsiveMode` varsayılanı `"table"` olduğundan mevcut kurulumlar yükseltme sonrası davranış değiştirmez.
@@ -210,7 +315,9 @@ const columns: ColumnDef[] = [
 ];
 ```
 
-### Özel mobil kart
+### Özel mobil kart (uyumluluk)
+
+Yeni kod için `#card` kullanın. `#mobile-card` adaptive mobil ve kart sunumunda `#card` yoksa alias olarak çalışmaya devam eder.
 
 ```vue
 <BaseDataTable

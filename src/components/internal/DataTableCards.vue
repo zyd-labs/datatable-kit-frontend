@@ -6,7 +6,10 @@
             :has-sortable-columns="hasSortableColumns"
             :exporting="exporting"
             :loading="loading"
+            :show-view-toggle="showViewToggle"
+            :view-mode="viewMode"
             @update:global-search-value="emit('update:globalSearchValue', $event)"
+            @update:view-mode="emit('update:viewMode', $event)"
             @open-filters="filtersVisible = true"
             @open-sort="sortVisible = true"
             @refresh="emit('refresh')"
@@ -45,9 +48,14 @@
             />
         </div>
 
-        <div v-if="loading" class="flex flex-col gap-3">
+        <div
+            v-if="loading"
+            class="datatable-kit-cards"
+            :class="cardsClass"
+            :style="cardsStyle"
+        >
             <div
-                v-for="index in 4"
+                v-for="index in skeletonCount"
                 :key="index"
                 class="rounded-lg border border-surface-200 p-3 dark:border-surface-700"
             >
@@ -72,11 +80,17 @@
             </slot>
         </div>
 
-        <div v-else class="flex flex-col gap-3">
-            <DataTableMobileCard
-                v-for="row in rows"
+        <div
+            v-else
+            class="datatable-kit-cards"
+            :class="cardsClass"
+            :style="cardsStyle"
+        >
+            <DataTableCard
+                v-for="(row, index) in rows"
                 :key="resolveRowKey(row)"
                 :data="row"
+                :index="index"
                 :columns="columns"
                 :selection-mode="selectionMode"
                 :is-selected="isRowSelected(row)"
@@ -84,7 +98,11 @@
                 :has-expansion="hasExpansion"
                 @toggle-selection="emit('toggle-selection', row)"
                 @toggle-expand="emit('toggle-expand', row)"
+                @card-click="emit('card-click', $event)"
             >
+                <template v-if="$slots.card" #card="slotProps">
+                    <slot name="card" v-bind="slotProps"></slot>
+                </template>
                 <template v-if="$slots['mobile-card']" #mobile-card="slotProps">
                     <slot name="mobile-card" v-bind="slotProps"></slot>
                 </template>
@@ -94,14 +112,18 @@
                 <template v-if="$slots.expansion" #expansion="slotProps">
                     <slot name="expansion" v-bind="slotProps"></slot>
                 </template>
-            </DataTableMobileCard>
+            </DataTableCard>
         </div>
 
-        <DataTableMobilePaginator
+        <Paginator
+            class="datatable-kit-cards-paginator"
             :first="first"
             :rows="rowsPerPage"
-            :total="total"
-            @page="emit('page', $event)"
+            :total-records="total"
+            :rows-per-page-options="rowsPerPageOptions"
+            template="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown CurrentPageReport"
+            :current-page-report-template="pageReportTemplate"
+            @page="onPage"
         />
 
         <DataTableMobileFilters
@@ -123,17 +145,24 @@
 </template>
 
 <script setup lang="ts">
-import { Button, Skeleton } from 'primevue';
+import { Button, Paginator, Skeleton } from 'primevue';
 import { computed, ref, useSlots } from 'vue';
-import type { ActiveFilterRow, ColumnDef, DataTableFilter } from '../../types/datatable';
+import type {
+    ActiveFilterRow,
+    CardLayout,
+    ColumnDef,
+    DataTableFilter,
+    DataViewMode,
+} from '../../types/datatable';
+import { DATATABLE_ROWS_PER_PAGE_OPTIONS } from '../../types/datatable';
 import { DATATABLE_LABELS } from '../../utils/labels';
-import DataTableMobileCard from './DataTableMobileCard.vue';
+import { DEFAULT_CARD_GAP, DEFAULT_CARD_MIN_WIDTH } from '../../utils/viewMode';
+import DataTableCard from './DataTableCard.vue';
 import DataTableMobileFilters from './DataTableMobileFilters.vue';
-import DataTableMobilePaginator from './DataTableMobilePaginator.vue';
 import DataTableMobileSort from './DataTableMobileSort.vue';
 import DataTableMobileToolbar from './DataTableMobileToolbar.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     columns: ColumnDef[];
     rows: Record<string, unknown>[];
     first: number;
@@ -150,11 +179,25 @@ const props = defineProps<{
     selectionMode?: 'single' | 'multiple';
     selectedRows: unknown[];
     expandedRows: Record<string | number, boolean>;
-}>();
+    cardLayout?: CardLayout;
+    cardMinWidth?: number;
+    cardGap?: number;
+    showViewToggle?: boolean;
+    viewMode?: DataViewMode;
+    rowsPerPageOptions?: number[];
+}>(), {
+    cardLayout: 'list',
+    cardMinWidth: DEFAULT_CARD_MIN_WIDTH,
+    cardGap: DEFAULT_CARD_GAP,
+    showViewToggle: false,
+    viewMode: 'table',
+    rowsPerPageOptions: () => [...DATATABLE_ROWS_PER_PAGE_OPTIONS],
+});
 
 const emit = defineEmits<{
     (e: 'update:globalSearchValue', value: string): void;
     (e: 'update:filters', value: Record<string, DataTableFilter>): void;
+    (e: 'update:viewMode', value: DataViewMode): void;
     (e: 'clear-filters'): void;
     (e: 'clear-filter-constraint', payload: { field: string; constraintIndex: number }): void;
     (e: 'refresh'): void;
@@ -163,6 +206,7 @@ const emit = defineEmits<{
     (e: 'sort', payload: { sortField?: string; sortOrder?: 1 | -1 }): void;
     (e: 'toggle-selection', row: Record<string, unknown>): void;
     (e: 'toggle-expand', row: Record<string, unknown>): void;
+    (e: 'card-click', payload: { data: Record<string, unknown>; originalEvent: Event }): void;
 }>();
 
 const slots = useSlots();
@@ -178,6 +222,16 @@ const hasSortableColumns = computed(() =>
 const hasActiveFiltersOrSearch = computed(() => {
     return props.activeFilterCount > 0 || Boolean(props.globalSearchValue?.trim());
 });
+
+const isGrid = computed(() => props.cardLayout === 'grid');
+const skeletonCount = computed(() => (isGrid.value ? 6 : 4));
+const cardsClass = computed(() => (isGrid.value ? 'datatable-kit-cards--grid' : 'datatable-kit-cards--list'));
+const cardsStyle = computed(() => ({
+    '--card-min-width': `${props.cardMinWidth}px`,
+    '--card-gap': `${props.cardGap}px`,
+}));
+
+const pageReportTemplate = computed(() => `{first}–{last} / {totalRecords} ${labels.records}`);
 
 const resolveRowKey = (row: Record<string, unknown>): string | number => {
     const id = row.id;
@@ -203,4 +257,27 @@ const isRowExpanded = (row: Record<string, unknown>): boolean => {
     const key = resolveRowKey(row);
     return Boolean(props.expandedRows[key]);
 };
+
+const onPage = (event: { first: number; rows: number }): void => {
+    emit('page', { first: event.first, rows: event.rows });
+};
 </script>
+
+<style scoped>
+.datatable-kit-cards--list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap, 0.75rem);
+}
+
+.datatable-kit-cards--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--card-min-width, 320px)), 1fr));
+    gap: var(--card-gap, 0.75rem);
+}
+
+.datatable-kit-cards-paginator :deep(.p-paginator) {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+</style>

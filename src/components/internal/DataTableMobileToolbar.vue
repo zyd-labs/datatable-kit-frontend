@@ -4,58 +4,66 @@
             <slot name="header-actions"></slot>
         </div>
 
-        <InputText
-            :model-value="globalSearchValue"
-            type="search"
-            :placeholder="labels.globalSearchPlaceholder"
-            :aria-label="labels.globalSearchPlaceholder"
-            class="w-full min-h-11"
-            @update:model-value="onSearchUpdate"
-        />
-
-        <div class="flex flex-wrap items-center gap-2">
-            <Button
-                type="button"
-                :label="filtersLabel"
-                icon="pi pi-filter"
-                severity="secondary"
-                class="min-h-11"
-                :aria-label="labels.filters"
-                @click="emit('open-filters')"
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
+            <InputText
+                :model-value="globalSearchValue"
+                type="search"
+                :placeholder="labels.globalSearchPlaceholder"
+                :aria-label="labels.globalSearchPlaceholder"
+                class="w-full min-h-11 md:flex-1"
+                @update:model-value="onSearchUpdate"
             />
 
-            <Button
-                v-if="hasSortableColumns"
-                type="button"
-                :label="labels.sort"
-                icon="pi pi-sort-alt"
-                severity="secondary"
-                class="min-h-11"
-                :aria-label="labels.sort"
-                @click="emit('open-sort')"
-            />
+            <div class="flex flex-wrap items-center gap-2">
+                <Button
+                    type="button"
+                    :label="filtersLabel"
+                    icon="pi pi-filter"
+                    severity="secondary"
+                    class="min-h-11"
+                    :aria-label="labels.filters"
+                    @click="emit('open-filters')"
+                />
 
-            <Button
-                type="button"
-                icon="pi pi-sync"
-                severity="secondary"
-                class="min-h-11 min-w-11"
-                :aria-label="labels.refresh"
-                v-tooltip="labels.refresh"
-                @click="emit('refresh')"
-            />
+                <Button
+                    v-if="hasSortableColumns"
+                    type="button"
+                    :label="labels.sort"
+                    icon="pi pi-sort-alt"
+                    severity="secondary"
+                    class="min-h-11"
+                    :aria-label="labels.sort"
+                    @click="emit('open-sort')"
+                />
 
-            <Button
-                type="button"
-                icon="pi pi-file-excel"
-                severity="success"
-                class="min-h-11 min-w-11"
-                :loading="exporting"
-                :disabled="exporting || loading"
-                :aria-label="labels.exportExcel"
-                v-tooltip="labels.exportExcel"
-                @click="emit('export')"
-            />
+                <Button
+                    type="button"
+                    icon="pi pi-sync"
+                    severity="secondary"
+                    class="min-h-11 min-w-11"
+                    :aria-label="labels.refresh"
+                    v-tooltip="labels.refresh"
+                    @click="emit('refresh')"
+                />
+
+                <Button
+                    type="button"
+                    icon="pi pi-file-excel"
+                    severity="success"
+                    class="min-h-11 min-w-11"
+                    :loading="exporting"
+                    :disabled="exporting || loading"
+                    :aria-label="labels.exportExcel"
+                    v-tooltip="labels.exportExcel"
+                    @click="emit('export')"
+                />
+
+                <DataTableViewToggle
+                    v-if="showViewToggle"
+                    :model-value="viewMode"
+                    @update:model-value="emit('update:viewMode', $event)"
+                />
+            </div>
         </div>
     </div>
 </template>
@@ -63,18 +71,26 @@
 <script setup lang="ts">
 import { Button, InputText } from 'primevue';
 import { computed } from 'vue';
+import type { DataViewMode } from '../../types/datatable';
 import { DATATABLE_LABELS } from '../../utils/labels';
+import DataTableViewToggle from './DataTableViewToggle.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     globalSearchValue: string;
     activeFilterCount: number;
     hasSortableColumns: boolean;
     exporting: boolean;
     loading: boolean;
-}>();
+    showViewToggle?: boolean;
+    viewMode?: DataViewMode;
+}>(), {
+    showViewToggle: false,
+    viewMode: 'table',
+});
 
 const emit = defineEmits<{
     (e: 'update:globalSearchValue', value: string): void;
+    (e: 'update:viewMode', value: DataViewMode): void;
     (e: 'open-filters'): void;
     (e: 'open-sort'): void;
     (e: 'refresh'): void;

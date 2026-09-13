@@ -2,9 +2,14 @@
     <article
         class="rounded-lg border border-surface-200 bg-surface-0 p-3 dark:border-surface-700 dark:bg-surface-900"
         :class="{ 'ring-1 ring-primary': isSelected && selectionMode === 'single' }"
+        @click="onCardClick"
     >
         <div class="flex items-start gap-3">
-            <div v-if="selectionMode === 'multiple'" class="flex min-h-11 min-w-11 items-center justify-center" @click.stop>
+            <div
+                v-if="selectionMode === 'multiple'"
+                class="flex min-h-11 min-w-11 items-center justify-center"
+                @click.stop
+            >
                 <Checkbox
                     :model-value="isSelected"
                     :binary="true"
@@ -34,7 +39,16 @@
                 <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
                         <template v-if="hasCustomCard">
-                            <slot name="mobile-card" :data="data" :columns="columns" />
+                            <slot
+                                v-if="hasCanonicalCardSlot"
+                                name="card"
+                                v-bind="cardSlotProps"
+                            />
+                            <slot
+                                v-else
+                                name="mobile-card"
+                                v-bind="cardSlotProps"
+                            />
                         </template>
 
                         <template v-else>
@@ -141,6 +155,7 @@
                 <div
                     v-if="hasExpansion && isExpanded"
                     class="mt-3 rounded-md border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800"
+                    @click.stop
                 >
                     <slot name="expansion" :data="data"></slot>
                 </div>
@@ -154,17 +169,18 @@ import { Button, Checkbox } from 'primevue';
 import { computed, useSlots } from 'vue';
 import type { ColumnDef } from '../../types/datatable';
 import {
-    buildMobileCardLayout,
+    buildCardLayout,
     formatRawDisplayValue,
     getNestedValue,
     isDisplayValueEmpty,
-    type MobileColumnItem,
-} from '../../utils/mobileColumns';
+    type CardColumnItem,
+} from '../../utils/cardColumns';
 import { DATATABLE_LABELS } from '../../utils/labels';
 import DataTableCellRender from './DataTableCellRender';
 
 const props = defineProps<{
     data: Record<string, unknown>;
+    index: number;
     columns: ColumnDef[];
     selectionMode?: 'single' | 'multiple';
     isSelected: boolean;
@@ -175,14 +191,34 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'toggle-selection'): void;
     (e: 'toggle-expand'): void;
+    (e: 'card-click', payload: { data: Record<string, unknown>; originalEvent: Event }): void;
 }>();
 
 const slots = useSlots();
 const labels = DATATABLE_LABELS;
 
-const hasCustomCard = computed(() => Boolean(slots['mobile-card']));
+const hasCanonicalCardSlot = computed(() => Boolean(slots.card));
+const hasCustomCard = computed(() => Boolean(slots.card || slots['mobile-card']));
 const hasActions = computed(() => Boolean(slots.actions));
-const layout = computed(() => buildMobileCardLayout(props.columns));
+const layout = computed(() => buildCardLayout(props.columns));
+
+const toggleSelection = (): void => {
+    emit('toggle-selection');
+};
+
+const toggleExpand = (): void => {
+    emit('toggle-expand');
+};
+
+const cardSlotProps = computed(() => ({
+    data: props.data,
+    index: props.index,
+    selected: props.isSelected,
+    expanded: props.isExpanded,
+    columns: props.columns,
+    toggleSelection,
+    toggleExpand,
+}));
 
 const resolveDisplay = (column: ColumnDef): string | null => {
     const raw = getNestedValue(props.data, column.field);
@@ -190,7 +226,7 @@ const resolveDisplay = (column: ColumnDef): string | null => {
 };
 
 const visibleMetas = computed(() => {
-    return layout.value.metas.filter((item: MobileColumnItem) => {
+    return layout.value.metas.filter((item: CardColumnItem) => {
         if (item.column.render) {
             return true;
         }
@@ -206,5 +242,12 @@ const selectionAriaLabel = computed(() => {
 
 const onMultipleSelect = (): void => {
     emit('toggle-selection');
+};
+
+const onCardClick = (event: Event): void => {
+    emit('card-click', {
+        data: props.data,
+        originalEvent: event,
+    });
 };
 </script>

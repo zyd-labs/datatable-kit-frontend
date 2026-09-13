@@ -1,9 +1,9 @@
 <template>
     <div class="datatable-kit-root">
-        <DataTableMobile
-            v-if="useMobilePresentation"
+        <DataTableCards
+            v-if="useCardsPresentation"
             :columns="columns"
-            :rows="mobileRows"
+            :rows="cardRows"
             :first="tableState?.first ?? 0"
             :rows-per-page="tableState?.rows ?? defaultRows"
             :total="tableState?.total ?? 0"
@@ -18,8 +18,14 @@
             :selection-mode="selectionMode"
             :selected-rows="selectedRows"
             :expanded-rows="expandedRowsModel"
+            :card-layout="cardLayout"
+            :card-min-width="cardMinWidth"
+            :card-gap="cardGap"
+            :show-view-toggle="showViewToggle"
+            :view-mode="resolvedPresentation"
             @update:global-search-value="onGlobalSearchValueUpdate"
             @update:filters="onMobileFiltersUpdate"
+            @update:view-mode="setViewMode"
             @clear-filters="clearFilters"
             @clear-filter-constraint="onClearFilterConstraint"
             @refresh="refreshData"
@@ -28,9 +34,13 @@
             @sort="onMobileSort"
             @toggle-selection="onMobileToggleSelection"
             @toggle-expand="onMobileToggleExpand"
+            @card-click="onCardClick"
         >
             <template v-if="$slots['header-actions']" #header-actions>
                 <slot name="header-actions"></slot>
+            </template>
+            <template v-if="$slots.card" #card="slotProps">
+                <slot name="card" v-bind="slotProps"></slot>
             </template>
             <template v-if="$slots['mobile-card']" #mobile-card="slotProps">
                 <slot name="mobile-card" v-bind="slotProps"></slot>
@@ -44,7 +54,7 @@
             <template v-if="$slots.empty" #empty="slotProps">
                 <slot name="empty" v-bind="slotProps"></slot>
             </template>
-        </DataTableMobile>
+        </DataTableCards>
 
         <DataTableDesktop
             v-else
@@ -67,6 +77,8 @@
             :selected-rows="selectedRows"
             :expanded-rows="expandedRowsModel"
             :active-filter-count="activeFilterCount"
+            :show-view-toggle="showViewToggle"
+            :view-mode="resolvedPresentation"
             @page="onPage"
             @sort="onSort"
             @filter="onFilter"
@@ -79,6 +91,7 @@
             @update:selected-rows="onSelectedRowsUpdate"
             @update:expanded-rows="onExpandedRowsUpdate"
             @update:filters="onDesktopFiltersUpdate"
+            @update:view-mode="setViewMode"
             @lookup-selection-meta="onLookupSelectionMetaPayload"
         >
             <template v-if="$slots['header-actions']" #header-actions>
@@ -95,7 +108,7 @@
             </template>
         </DataTableDesktop>
 
-        <Popover v-if="!useMobilePresentation" ref="activeFiltersPopoverRef">
+        <Popover v-if="!useCardsPresentation" ref="activeFiltersPopoverRef">
             <div class="w-[20rem] max-w-[calc(100vw-2rem)] p-1">
                 <div class="mb-2 flex items-center justify-between">
                     <h4 class="text-sm font-semibold">{{ labels.activeFilters }}</h4>
@@ -154,8 +167,11 @@ import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
 import type {
     ActiveFilterRow,
+    CardClickPayload,
+    CardLayout,
     ColumnDef,
     DataTableFilter,
+    DataViewMode,
     FilterConstraint,
     ResponsiveMode,
 } from '../types/datatable';
@@ -180,8 +196,9 @@ import {
     isConstraintValueEmpty,
 } from '../utils/filterPayload';
 import { DATATABLE_LABELS } from '../utils/labels';
+import { DEFAULT_CARD_GAP, DEFAULT_CARD_MIN_WIDTH, resolvePresentationMode } from '../utils/viewMode';
+import DataTableCards from './internal/DataTableCards.vue';
 import DataTableDesktop from './internal/DataTableDesktop.vue';
-import DataTableMobile from './internal/DataTableMobile.vue';
 
 const props = withDefaults(defineProps<{
     tableKey: string;
@@ -196,12 +213,22 @@ const props = withDefaults(defineProps<{
     selectionMode?: 'single' | 'multiple';
     responsiveMode?: ResponsiveMode;
     mobileBreakpoint?: number;
+    viewMode?: DataViewMode;
+    showViewToggle?: boolean;
+    cardLayout?: CardLayout;
+    cardMinWidth?: number;
+    cardGap?: number;
 }>(), {
     defaultRows: 10,
     actionsHeader: DATATABLE_LABELS.actions,
     selectionMode: undefined,
     responsiveMode: 'table',
     mobileBreakpoint: 768,
+    viewMode: 'table',
+    showViewToggle: false,
+    cardLayout: 'list',
+    cardMinWidth: DEFAULT_CARD_MIN_WIDTH,
+    cardGap: DEFAULT_CARD_GAP,
 });
 
 const emit = defineEmits<{
@@ -209,6 +236,8 @@ const emit = defineEmits<{
     (e: 'selection-change', rows: unknown[]): void;
     (e: 'filter-change', filters: Record<string, DataTableFilter>): void;
     (e: 'update:expandedRows', value: Record<number | string, boolean>): void;
+    (e: 'update:viewMode', value: DataViewMode): void;
+    (e: 'card-click', payload: CardClickPayload): void;
 }>();
 
 const labels = DATATABLE_LABELS;
@@ -229,9 +258,35 @@ const clearSelection = (): void => {
 };
 
 const isMobileViewport = useMediaQuery(() => `(max-width: ${props.mobileBreakpoint}px)`);
-const useMobilePresentation = computed(() => {
-    return props.responsiveMode === 'adaptive' && isMobileViewport.value;
+const viewModeState = ref<DataViewMode>(props.viewMode);
+
+watch(
+    () => props.viewMode,
+    (value) => {
+        if (value !== viewModeState.value) {
+            viewModeState.value = value;
+        }
+    },
+);
+
+const setViewMode = (value: DataViewMode): void => {
+    if (viewModeState.value === value) {
+        return;
+    }
+
+    viewModeState.value = value;
+    emit('update:viewMode', value);
+};
+
+const resolvedPresentation = computed(() => {
+    return resolvePresentationMode(
+        viewModeState.value,
+        props.responsiveMode,
+        isMobileViewport.value,
+    );
 });
+
+const useCardsPresentation = computed(() => resolvedPresentation.value === 'cards');
 
 const storageKey = computed(() => `dt-columns-${props.tableKey}`);
 
@@ -280,7 +335,7 @@ const tableState = computed(() => {
     return state;
 });
 
-const mobileRows = computed(() => {
+const cardRows = computed(() => {
     return (tableState.value?.data ?? []) as Record<string, unknown>[];
 });
 
@@ -490,7 +545,7 @@ const onClearFilterConstraint = (payload: { field: string; constraintIndex: numb
 };
 
 const preserveFilterOverlayOnPrimeOverlayInteraction = (event: Event): void => {
-    if (useMobilePresentation.value) {
+    if (useCardsPresentation.value) {
         return;
     }
 
@@ -776,6 +831,10 @@ const onMobileToggleSelection = (row: Record<string, unknown>): void => {
             selectedRows.value = [...selectedRows.value, row];
         }
     }
+};
+
+const onCardClick = (payload: CardClickPayload): void => {
+    emit('card-click', payload);
 };
 
 const onMobileToggleExpand = (row: Record<string, unknown>): void => {

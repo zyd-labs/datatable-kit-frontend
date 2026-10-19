@@ -1,7 +1,7 @@
 {
     "$schema": "https://json.schemastore.org/package",
     "name": "@zyd-labs/datatable-kit",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "type": "module",
     "license": "UNLICENSED",
     "exports": {
@@ -13,11 +13,18 @@
     "files": [
         "src"
     ],
+    "scripts": {
+        "test": "vitest run"
+    },
     "peerDependencies": {
-        "@zyd-labs/primevue-lookup": ">=0.1.0 <1.0.0",
         "@vueuse/core": "^14.0.0",
+        "@zyd-labs/primevue-lookup": ">=0.1.0 <1.0.0",
         "pinia": "^3.0.0",
         "primevue": "^4.0.0",
         "vue": "^3.3.0"
+    },
+    "devDependencies": {
+        "typescript": "^5.9.3",
+        "vitest": "^3.2.7"
     }
 }

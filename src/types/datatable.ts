@@ -38,9 +38,19 @@ export interface DataTableState {
     globalFilter?: string;
 }
 
-export interface DataTableResponse<T> {
+export interface DataTableResponse<T, TMeta = unknown> {
     data: T[];
     total: number;
+    meta?: TMeta;
+}
+
+/**
+ * Successful BaseDataTable load payload (generic metadata passthrough).
+ */
+export interface DataTableLoadResult<T = unknown, TMeta = unknown> {
+    data: T[];
+    total: number;
+    meta?: TMeta;
 }
 
 export interface ColumnDefaultFilter {

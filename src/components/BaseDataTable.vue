@@ -172,6 +172,7 @@ import type {
     CardLayout,
     ColumnDef,
     DataTableFilter,
+    DataTableLoadResult,
     DataViewMode,
     FilterConstraint,
     ResponsiveMode,
@@ -197,6 +198,7 @@ import {
     isConstraintValueEmpty,
 } from '../utils/filterPayload';
 import { DATATABLE_LABELS } from '../utils/labels';
+import { createLoadedPayload } from '../utils/loadedEvent';
 import {
     DEFAULT_CARD_GAP,
     DEFAULT_CARD_MIN_WIDTH,
@@ -247,6 +249,7 @@ const emit = defineEmits<{
     (e: 'update:expandedRows', value: Record<number | string, boolean>): void;
     (e: 'update:viewMode', value: DataViewMode): void;
     (e: 'card-click', payload: CardClickPayload): void;
+    (e: 'loaded', payload: DataTableLoadResult): void;
 }>();
 
 const labels = DATATABLE_LABELS;
@@ -480,6 +483,7 @@ const fetchData = async () => {
             total: result.total,
             loading: false,
         });
+        emit('loaded', createLoadedPayload(result));
     } catch (error: unknown) {
         store.patch(props.tableKey, { loading: false });
         const message = error instanceof Error ? error.message : 'Veri yüklenemedi';

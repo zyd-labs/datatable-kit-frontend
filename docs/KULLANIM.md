@@ -148,6 +148,7 @@ const onFilterChange = (filters: Record<string, unknown>) => {
 
 ### Event'ler
 
+- `loaded({ data, total, meta? })`: Veri başarıyla yüklendiğinde tetiklenir (ilk yükleme, sayfalama, sıralama, filtreleme ve `refreshData()` sonrası). Hata durumunda üretilmez. Tip: `DataTableLoadResult`.
 - `selection-change(rows)`: Seçili satırlar değiştiğinde tetiklenir.
 - `filter-change(filters)`: Filtre değiştiğinde tetiklenir.
 - `row-toggle(data)`: Expand/collapse durumunda tetiklenir.

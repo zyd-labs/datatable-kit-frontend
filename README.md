@@ -14,7 +14,8 @@ PrimeVue 4 + Tailwind 4 tabanlı projeler için yeniden kullanılabilir DataTabl
 - `useDatatable` composable: Datatable backend sözleşmesine uygun GET & export çağrılarını basitleştirir.
 - Pinia `useDatatableStore`: Tablolar arası durum yönetimi (`first`, `rows`, `filters`, `sortField` vb.).
 - Http adapter katmanı: Projeye özel axios/fetch wrapper’ınızı kolayca bağlayın.
-- TypeScript desteği: `ColumnDef`, `DataViewMode`, `ColumnCardConfig`, `ColumnMobileConfig`, `DataTableState` vb. tipler.
+- TypeScript desteği: `ColumnDef`, `DataTableLoadResult`, `DataViewMode`, `ColumnCardConfig`, `ColumnMobileConfig`, `DataTableState` vb. tipler.
+- `loaded` event: Başarılı veri yüklemesinden sonra `{ data, total, meta? }` payload’ı ile tetiklenir.
 
 ## Kurulum
 

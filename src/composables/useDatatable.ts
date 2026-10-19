@@ -1,16 +1,19 @@
 import { resolveDatatableHttpClient } from '../http-client';
-import type { DataTableResponse } from '../types/datatable';
+import type { DataTableLoadResult, DataTableResponse } from '../types/datatable';
 
 export interface DatatableRequestParams extends Record<string, unknown> { }
 
 export function useDatatable(endpoint: string) {
-    const fetchData = async <T>(params: DatatableRequestParams) => {
+    const fetchData = async <T, TMeta = unknown>(
+        params: DatatableRequestParams,
+    ): Promise<DataTableLoadResult<T, TMeta>> => {
         const client = resolveDatatableHttpClient();
-        const { data } = await client.get<DataTableResponse<T>>(endpoint, { params });
+        const { data } = await client.get<DataTableResponse<T, TMeta>>(endpoint, { params });
 
         return {
             data: data.data,
             total: data.total,
+            meta: data.meta,
         };
     };
 

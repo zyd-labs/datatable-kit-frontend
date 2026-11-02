@@ -12,6 +12,7 @@ export interface DatatableHttpResponse<T = unknown> {
 
 export interface DatatableHttpClient {
     get<T = unknown>(url: string, config?: DatatableHttpRequestConfig): Promise<DatatableHttpResponse<T>>;
+    getRequestContext?(url: string): { allowed: boolean; signal?: AbortSignal };
 }
 
 interface HttpClientStore {
@@ -42,4 +43,3 @@ export function hasDatatableHttpClient(): boolean {
 export function resetDatatableHttpClient(): void {
     httpClientStore[STORE_KEY] = null;
 }
-

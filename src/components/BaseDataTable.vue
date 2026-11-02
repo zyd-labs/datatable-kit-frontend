@@ -163,9 +163,10 @@ import type { LookupOption } from '@zyd-labs/primevue-lookup';
 import { useMediaQuery } from '@vueuse/core';
 import { Button, Popover } from 'primevue';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useDatatable } from '../composables/useDatatable';
 import { useDatatableStore } from '../stores/datatable.store';
+import { createRequestTracker } from '../utils/requestTracker';
 import type {
     ActiveFilterRow,
     CardClickPayload,
@@ -388,7 +389,10 @@ const activeFilterRows = computed<ActiveFilterRow[]>(() => {
 
 const activeFilterCount = computed(() => countActiveFilterConstraints(filters.value));
 
-const { fetchData: apiFetch, exportData: apiExport } = useDatatable(props.endpoint);
+const { fetchData: apiFetch, exportData: apiExport, getRequestContext } = useDatatable(props.endpoint);
+const loadRequests = createRequestTracker();
+const exportRequests = createRequestTracker();
+let active = true;
 
 watch(
     selectedRows,
@@ -459,8 +463,6 @@ const fetchData = async () => {
         return;
     }
 
-    store.patch(props.tableKey, { loading: true });
-
     try {
         const cleanedFilters = cleanFilters(tableState.value.filters);
 
@@ -477,13 +479,36 @@ const fetchData = async () => {
             params.sortOrder = sortOrder;
         }
 
-        const result = await apiFetch(params);
-        store.patch(props.tableKey, {
-            data: result.data,
-            total: result.total,
-            loading: false,
-        });
-        emit('loaded', createLoadedPayload(result));
+        const ticket = active ? loadRequests.begin(JSON.stringify(params), getRequestContext()) : null;
+        if (!ticket) {
+            return;
+        }
+        store.patch(props.tableKey, { loading: true });
+        try {
+            const result = await apiFetch(params, ticket.signal);
+            if (!ticket.isCurrent()) {
+                return;
+            }
+            store.patch(props.tableKey, {
+                data: result.data,
+                total: result.total,
+                loading: false,
+            });
+            emit('loaded', createLoadedPayload(result));
+        } catch (error: unknown) {
+            if (!ticket.isCurrent()) {
+                return;
+            }
+            if (error instanceof Error && (
+                error.name === 'CanceledError' || error.name === 'AbortError'
+            )) {
+                store.patch(props.tableKey, { loading: false });
+                return;
+            }
+            throw error;
+        } finally {
+            ticket.finish();
+        }
     } catch (error: unknown) {
         store.patch(props.tableKey, { loading: false });
         const message = error instanceof Error ? error.message : 'Veri yüklenemedi';
@@ -647,12 +672,27 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    active = false;
+    loadRequests.cancel();
+    exportRequests.cancel();
     document.removeEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
     document.removeEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
 
     if (globalSearchDebounceTimer.value) {
         clearTimeout(globalSearchDebounceTimer.value);
     }
+});
+
+onActivated(() => {
+    active = true;
+});
+
+onDeactivated(() => {
+    active = false;
+    loadRequests.cancel();
+    exportRequests.cancel();
+    store.patch(props.tableKey, { loading: false });
+    exporting.value = false;
 });
 
 const refreshData = () => {
@@ -888,10 +928,14 @@ const onExpandedRowsUpdate = (value: Record<number | string, boolean>): void => 
 };
 
 const exportTable = async () => {
-    if (!tableState.value) {
+    if (!tableState.value || !active) {
         return;
     }
 
+    const ticket = exportRequests.begin('export', getRequestContext());
+    if (!ticket) {
+        return;
+    }
     exporting.value = true;
 
     try {
@@ -911,7 +955,10 @@ const exportTable = async () => {
             params.sortOrder = sortOrder;
         }
 
-        const response = await apiExport(params);
+        const response = await apiExport(params, ticket.signal);
+        if (!ticket.isCurrent()) {
+            return;
+        }
 
         const blob = response.data instanceof Blob ? response.data : new Blob([response.data as BlobPart]);
         const dispositionHeader = response.headers?.['content-disposition'];
@@ -937,6 +984,11 @@ const exportTable = async () => {
             life: 3000,
         });
     } catch (error: unknown) {
+        if (!ticket.isCurrent() || (error instanceof Error && (
+            error.name === 'CanceledError' || error.name === 'AbortError'
+        ))) {
+            return;
+        }
         const message = error instanceof Error ? error.message : 'Excel oluşturulurken hata oluştu';
         toast.add({
             severity: 'error',
@@ -945,7 +997,10 @@ const exportTable = async () => {
             life: 4000,
         });
     } finally {
-        exporting.value = false;
+        if (ticket.isCurrent()) {
+            exporting.value = false;
+        }
+        ticket.finish();
     }
 };
 

@@ -51,6 +51,11 @@ installDatatableHttpClient();
 
 Bu sayede interceptor, auth header ve hata yönetimi projenizde tanımlandığı şekilde çalışmaya devam eder.
 
+İsteğe bağlı `getRequestContext(url)` adaptör metodu `{ allowed, signal? }` döndürebilir.
+`allowed` false olduğunda tablo yeni istek başlatmaz; `signal` iptal edildiğinde
+bekleyen yükleme veya export sonucu uygulanmaz. Adaptör bu metodu sağlamazsa
+mevcut davranış korunur. Aynı tablo durumuna ait eşzamanlı yüklemeler tekilleştirilir.
+
 ## Kullanım
 
 ### BaseDataTable

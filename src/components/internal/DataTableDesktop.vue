@@ -26,6 +26,7 @@
         v-model:expandedRows="expandedRowsModel"
         @row-toggle="emit('row-toggle', $event)"
         v-bind="rowSelectionBindings"
+        :rowClass="rowClass"
     >
         <template #header>
             <div class="flex flex-col gap-4">
@@ -187,7 +188,7 @@ import {
     Skeleton,
 } from 'primevue';
 import { computed, ref } from 'vue';
-import type { ColumnDef, DataTableFilter, DataViewMode } from '../../types/datatable';
+import type { ColumnDef, DataTableFilter, DataTableRowClassResolver, DataViewMode } from '../../types/datatable';
 import { DATATABLE_ROWS_PER_PAGE_OPTIONS } from '../../types/datatable';
 import {
     getFilterConfig,
@@ -220,6 +221,7 @@ const props = withDefaults(defineProps<{
     rowsPerPageOptions?: number[];
     showViewToggle?: boolean;
     viewMode?: DataViewMode;
+    rowClass?: DataTableRowClassResolver;
 }>(), {
     actionsHeader: DATATABLE_LABELS.actions,
     rowsPerPageOptions: () => [...DATATABLE_ROWS_PER_PAGE_OPTIONS],

@@ -14,17 +14,20 @@ PrimeVue 4 + Tailwind 4 tabanlı projeler için yeniden kullanılabilir DataTabl
 - `useDatatable` composable: Datatable backend sözleşmesine uygun GET & export çağrılarını basitleştirir.
 - Pinia `useDatatableStore`: Tablolar arası durum yönetimi (`first`, `rows`, `filters`, `sortField` vb.).
 - Http adapter katmanı: Projeye özel axios/fetch wrapper’ınızı kolayca bağlayın.
-- TypeScript desteği: `ColumnDef`, `DataTableLoadResult`, `DataViewMode`, `ColumnCardConfig`, `ColumnMobileConfig`, `DataTableState` vb. tipler.
+- TypeScript desteği: `ColumnDef`, `DataTableLoadResult`, `DataViewMode`, `ColumnCardConfig`, `ColumnMobileConfig`, `DataTableState`, `ControlledSort`, `DataTableRowClassResolver` vb. tipler.
+- `controlledFilters` / `extraFilters` / `controlledSort` / `rowClass`: dışarıdan filtre ve satır özelleştirmesi, tabloyu yeniden kurmadan.
 - `loaded` event: Başarılı veri yüklemesinden sonra `{ data, total, meta? }` payload’ı ile tetiklenir.
 
 ## Kurulum
 
+Paket `dist` üretmez. `exports` doğrudan `src/index.ts` ve Vue kaynak dosyalarına işaret eder; Vite tüketicileri Git bağımlılığından doğrudan derler.
+
 ```bash
-npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#v0.4.0
+npm install git+https://github.com/zyd-labs/datatable-kit-frontend.git#<COMMIT_SHA>
 # veya pnpm / yarn eşdeğerleri
 ```
 
-`package.json` içinde git dependency olarak eklediğinizde Vite alias kullanmanıza gerek kalmadan `@zyd-labs/datatable-kit` üzerinden erişebilirsiniz.
+`package.json` içinde git dependency olarak eklediğinizde Vite alias kullanmanıza gerek kalmadan `@zyd-labs/datatable-kit` üzerinden erişebilirsiniz. Branch HEAD yerine commit SHA sabitleyin.
 
 ## Http İstemcisini Kaydetme
 
@@ -127,7 +130,23 @@ console.log(result.data, result.total);
 
 - `filter` alanı `boolean` ya da detaylı ayar gerektiren durumlarda obje olarak verilebilir.
 - `defaultFilter` ile tablo ilk açıldığında uygulanan varsayılan filtreyi belirleyebilirsiniz.
+- `controlledFilters` kolon filtrelerini tabloyu yeniden kurmadan günceller. Genel arama korunur.
+- `extraFilters` kolon listesinde olmayan backend filtrelerini istekte tutar.
+- `controlledSort` dışarıdan sıralamayı, filtreyle aynı güncellemede değiştirir.
+- `rowClass` satır ve kart görünümüne sınıf verir.
 - `render` ile Vue bileşeni veya fonksiyon referansı sağlayarak hücreyi özelleştirebilirsiniz.
+
+```vue
+<BaseDataTable
+  table-key="tenant-installments"
+  endpoint="/installments"
+  :columns="columns"
+  :controlled-filters="quickFilters"
+  :extra-filters="backendOnlyFilters"
+  :controlled-sort="sort"
+  :row-class="(row) => row.is_overdue ? 'row-overdue' : undefined"
+/>
+```
 
 ```ts
 const columns: ColumnDef[] = [

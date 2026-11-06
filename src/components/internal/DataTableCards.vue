@@ -97,6 +97,7 @@
                 :is-expanded="isRowExpanded(row)"
                 :has-expansion="hasExpansion"
                 :card-clickable="cardClickable"
+                :row-class="resolveRowClass(row)"
                 @toggle-selection="emit('toggle-selection', row)"
                 @toggle-expand="emit('toggle-expand', row)"
                 @card-click="emit('card-click', $event)"
@@ -153,6 +154,8 @@ import type {
     CardLayout,
     ColumnDef,
     DataTableFilter,
+    DataTableRowClass,
+    DataTableRowClassResolver,
     DataViewMode,
 } from '../../types/datatable';
 import { DATATABLE_ROWS_PER_PAGE_OPTIONS } from '../../types/datatable';
@@ -187,6 +190,7 @@ const props = withDefaults(defineProps<{
     viewMode?: DataViewMode;
     cardClickable?: boolean;
     rowsPerPageOptions?: number[];
+    rowClass?: DataTableRowClassResolver;
 }>(), {
     cardLayout: 'list',
     cardMinWidth: DEFAULT_CARD_MIN_WIDTH,
@@ -254,6 +258,10 @@ const isRowSelected = (row: Record<string, unknown>): boolean => {
 
         return resolveRowKey(selected as Record<string, unknown>) === key;
     });
+};
+
+const resolveRowClass = (row: Record<string, unknown>): DataTableRowClass | undefined => {
+    return props.rowClass?.(row);
 };
 
 const isRowExpanded = (row: Record<string, unknown>): boolean => {

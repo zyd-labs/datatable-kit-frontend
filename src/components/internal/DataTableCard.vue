@@ -1,10 +1,13 @@
 <template>
     <article
-        class="rounded-lg border border-surface-200 bg-surface-0 p-3 dark:border-surface-700 dark:bg-surface-900"
-        :class="{
-            'ring-1 ring-primary': isSelected && selectionMode === 'single',
-            'cursor-pointer': cardClickable,
-        }"
+        class="datatable-kit-card rounded-lg border p-3"
+        :class="[
+            {
+                'ring-1 ring-primary': isSelected && selectionMode === 'single',
+                'cursor-pointer': cardClickable,
+            },
+            rowClass,
+        ]"
         @click="onCardBodyClick"
     >
         <div class="flex items-start gap-3">
@@ -36,7 +39,7 @@
                     :class="isSelected ? 'border-primary bg-primary' : 'bg-transparent'"
                     aria-hidden="true"
                 >
-                    <span v-if="isSelected" class="h-2 w-2 rounded-full bg-surface-0" />
+                    <span v-if="isSelected" class="datatable-kit-card__selection-dot h-2 w-2 rounded-full" />
                 </span>
             </button>
 
@@ -62,7 +65,7 @@
                                     <div
                                         v-for="item in layout.titles"
                                         :key="`title-${item.column.field}`"
-                                        class="text-base font-semibold text-surface-900 dark:text-surface-0"
+                                        class="text-base font-semibold"
                                     >
                                         <DataTableCellRender
                                             v-if="item.column.render"
@@ -82,7 +85,7 @@
                                         />
                                         <span
                                             v-else-if="resolveDisplay(item.column)"
-                                            class="inline-flex rounded-md bg-surface-100 px-2 py-0.5 text-xs font-medium text-surface-700 dark:bg-surface-800 dark:text-surface-200"
+                                            class="datatable-kit-card__badge inline-flex rounded-md px-2 py-0.5 text-xs font-medium"
                                         >
                                             {{ resolveDisplay(item.column) }}
                                         </span>
@@ -110,7 +113,7 @@
                                     class="grid grid-cols-[minmax(0,7rem)_1fr] gap-2 text-sm"
                                 >
                                     <div class="text-surface-500 dark:text-surface-400">{{ item.label }}</div>
-                                    <div class="min-w-0 text-surface-900 dark:text-surface-0">
+                                    <div class="min-w-0">
                                         <DataTableCellRender
                                             v-if="item.column.render"
                                             :render="item.column.render"
@@ -170,7 +173,7 @@
 
                 <div
                     v-if="hasExpansion && isExpanded"
-                    class="mt-3 rounded-md border border-surface-200 bg-surface-50 p-3 dark:border-surface-700 dark:bg-surface-800"
+                    class="datatable-kit-card__expansion mt-3 rounded-md border p-3"
                     @click.stop
                     @keydown.stop
                 >
@@ -184,7 +187,7 @@
 <script setup lang="ts">
 import { Button, Checkbox } from 'primevue';
 import { computed, useSlots } from 'vue';
-import type { ColumnDef } from '../../types/datatable';
+import type { ColumnDef, DataTableRowClass } from '../../types/datatable';
 import {
     buildCardLayout,
     formatRawDisplayValue,
@@ -204,6 +207,7 @@ const props = withDefaults(defineProps<{
     isExpanded: boolean;
     hasExpansion: boolean;
     cardClickable?: boolean;
+    rowClass?: DataTableRowClass;
 }>(), {
     cardClickable: false,
 });
@@ -389,3 +393,25 @@ const onOpenClick = (event: Event): void => {
     emitCardClick(event);
 };
 </script>
+
+<style scoped>
+.datatable-kit-card {
+    background: var(--p-content-background);
+    color: var(--p-text-color);
+    border-color: var(--p-content-border-color);
+}
+
+.datatable-kit-card__selection-dot {
+    background: var(--p-primary-contrast-color);
+}
+
+.datatable-kit-card__expansion {
+    background: var(--p-content-background);
+    border-color: var(--p-content-border-color);
+}
+
+.datatable-kit-card__badge {
+    background: var(--p-content-hover-background, var(--p-surface-100));
+    color: var(--p-text-color);
+}
+</style>

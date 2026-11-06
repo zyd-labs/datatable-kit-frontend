@@ -129,6 +129,17 @@ export interface CardClickPayload {
     originalEvent: Event;
 }
 
+export type DataTableRowClass = string | string[] | Record<string, boolean>;
+
+export type DataTableRowClassResolver = (
+    data: Record<string, unknown>,
+) => DataTableRowClass | undefined;
+
+export interface ControlledSort {
+    field?: string;
+    order?: 1 | -1;
+}
+
 export interface ActiveFilterRow {
     key: string;
     field: string;

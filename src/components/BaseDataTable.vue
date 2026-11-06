@@ -24,6 +24,7 @@
             :show-view-toggle="showViewToggleAvailable"
             :view-mode="effectiveViewMode"
             :card-clickable="cardClickable"
+            :row-class="rowClass"
             @update:global-search-value="onGlobalSearchValueUpdate"
             @update:filters="onMobileFiltersUpdate"
             @update:view-mode="setViewMode"
@@ -80,6 +81,7 @@
             :active-filter-count="activeFilterCount"
             :show-view-toggle="showViewToggleAvailable"
             :view-mode="effectiveViewMode"
+            :row-class="rowClass"
             @page="onPage"
             @sort="onSort"
             @filter="onFilter"
@@ -172,12 +174,15 @@ import type {
     CardClickPayload,
     CardLayout,
     ColumnDef,
+    ControlledSort,
     DataTableFilter,
     DataTableLoadResult,
+    DataTableRowClassResolver,
     DataViewMode,
     FilterConstraint,
     ResponsiveMode,
 } from '../types/datatable';
+import { mergeControlledFilters, mergeRequestFilters } from '../utils/controlledFilters';
 import {
     buildFilterForColumn,
     getDefaultMatchMode,
@@ -229,6 +234,10 @@ const props = withDefaults(defineProps<{
     cardMinWidth?: number;
     cardGap?: number;
     cardClickable?: boolean;
+    rowClass?: DataTableRowClassResolver;
+    controlledFilters?: Record<string, DataTableFilter>;
+    extraFilters?: Record<string, DataTableFilter>;
+    controlledSort?: ControlledSort;
 }>(), {
     defaultRows: 10,
     actionsHeader: DATATABLE_LABELS.actions,
@@ -260,6 +269,10 @@ const desktopRef = ref<InstanceType<typeof DataTableDesktop> | null>(null);
 const activeFiltersPopoverRef = ref();
 const exporting = ref(false);
 const filters = ref<Record<string, DataTableFilter>>({});
+const extraFiltersState = ref<Record<string, DataTableFilter>>({});
+const pinnedFilterKeys = ref<string[]>([]);
+let hydrated = false;
+let lastExternalSignature = '';
 const selectedRows = ref<unknown[]>([]);
 const globalSearchValue = ref('');
 const globalSearchDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
@@ -358,11 +371,13 @@ const cardRows = computed(() => {
     return (tableState.value?.data ?? []) as Record<string, unknown>[];
 });
 
+const requestFilters = computed(() => mergeRequestFilters(filters.value, extraFiltersState.value));
+
 const activeFilterRows = computed<ActiveFilterRow[]>(() => {
     const rows: ActiveFilterRow[] = [];
     const fieldLabelMap = new Map(props.columns.map((column) => [resolveFilterKey(column), column.header]));
 
-    Object.entries(filters.value).forEach(([field, filter]) => {
+    Object.entries(requestFilters.value).forEach(([field, filter]) => {
         if (!filter?.constraints?.length) {
             return;
         }
@@ -387,7 +402,7 @@ const activeFilterRows = computed<ActiveFilterRow[]>(() => {
     return rows;
 });
 
-const activeFilterCount = computed(() => countActiveFilterConstraints(filters.value));
+const activeFilterCount = computed(() => countActiveFilterConstraints(requestFilters.value));
 
 const { fetchData: apiFetch, exportData: apiExport, getRequestContext } = useDatatable(props.endpoint);
 const loadRequests = createRequestTracker();
@@ -447,7 +462,7 @@ const syncFilterStateWithColumns = (columns: ColumnDef[]) => {
             return;
         }
 
-        if (!allowedKeys.has(field)) {
+        if (!allowedKeys.has(field) && !pinnedFilterKeys.value.includes(field)) {
             delete nextFilters[field];
         }
     });
@@ -464,7 +479,10 @@ const fetchData = async () => {
     }
 
     try {
-        const cleanedFilters = cleanFilters(tableState.value.filters);
+        const cleanedFilters = mergeRequestFilters(
+            cleanFilters(tableState.value.filters as Record<string, DataTableFilter>),
+            cleanFilters(extraFiltersState.value),
+        );
 
         const params: Record<string, unknown> = {
             first: tableState.value.first,
@@ -643,17 +661,80 @@ watch(visibleColumns, (newVal) => {
     columnVisibilityState = writeHiddenColumnState(storageKey.value, hidden, columnVisibilityState);
 }, { deep: true });
 
+const externalSignature = computed(() => JSON.stringify({
+    controlledFilters: props.controlledFilters ?? {},
+    extraFilters: props.extraFilters ?? {},
+    controlledSort: props.controlledSort ?? null,
+}));
+
+const applyExternalQuery = (resetPage: boolean): void => {
+    const merged = mergeControlledFilters({
+        current: filters.value,
+        incoming: props.controlledFilters ?? {},
+        previousKeys: pinnedFilterKeys.value,
+        columns: props.columns,
+    });
+
+    pinnedFilterKeys.value = merged.keys;
+    filters.value = merged.filters;
+    extraFiltersState.value = { ...(props.extraFilters ?? {}) };
+
+    if (!tableState.value) {
+        return;
+    }
+
+    const patch: {
+        filters: Record<string, DataTableFilter>;
+        first?: number;
+        sortField?: string;
+        sortOrder?: 1 | -1;
+    } = {
+        filters: merged.filters,
+    };
+
+    if (resetPage) {
+        patch.first = 0;
+    }
+
+    if (props.controlledSort) {
+        patch.sortField = props.controlledSort.field;
+        patch.sortOrder = props.controlledSort.order;
+    }
+
+    store.patch(props.tableKey, patch);
+};
+
+watch(externalSignature, (signature) => {
+    if (!hydrated || signature === lastExternalSignature) {
+        return;
+    }
+
+    lastExternalSignature = signature;
+    applyExternalQuery(true);
+    fetchData();
+});
+
 onMounted(() => {
     document.addEventListener('mousedown', preserveFilterOverlayOnPrimeOverlayInteraction, true);
     document.addEventListener('click', preserveFilterOverlayOnPrimeOverlayInteraction, true);
 
     const initialFilters = initFilters();
+    const merged = mergeControlledFilters({
+        current: initialFilters,
+        incoming: props.controlledFilters ?? {},
+        previousKeys: [],
+        columns: props.columns,
+    });
+    pinnedFilterKeys.value = merged.keys;
+    filters.value = merged.filters;
+    extraFiltersState.value = { ...(props.extraFilters ?? {}) };
 
     store.init(props.tableKey, {
         rows: props.defaultRows,
-        sortField: props.defaultSortField,
-        sortOrder: props.defaultSortOrder !== undefined ? (Number(props.defaultSortOrder) as 1 | -1) : undefined,
-        filters: initialFilters,
+        sortField: props.controlledSort?.field ?? props.defaultSortField,
+        sortOrder: props.controlledSort?.order
+            ?? (props.defaultSortOrder !== undefined ? (Number(props.defaultSortOrder) as 1 | -1) : undefined),
+        filters: merged.filters,
     });
 
     const hidden = readHiddenColumnState(storageKey.value, props.columns);
@@ -668,6 +749,8 @@ onMounted(() => {
         isSyncingVisibleColumns = false;
     }
 
+    lastExternalSignature = externalSignature.value;
+    hydrated = true;
     fetchData();
 });
 
@@ -753,17 +836,38 @@ const clearFilters = () => {
         }
     });
 
-    filters.value = clearedFilters;
+    const merged = mergeControlledFilters({
+        current: clearedFilters,
+        incoming: props.controlledFilters ?? {},
+        previousKeys: [],
+        columns: props.columns,
+    });
+    pinnedFilterKeys.value = merged.keys;
+    filters.value = merged.filters;
+    extraFiltersState.value = { ...(props.extraFilters ?? {}) };
     store.patch(props.tableKey, {
-        filters: clearedFilters,
+        filters: merged.filters,
         globalFilter: undefined,
         first: 0,
     });
-    emit('filter-change', clearedFilters);
+    emit('filter-change', merged.filters);
     fetchData();
 };
 
 const clearSingleFilter = (field: string): void => {
+    if (extraFiltersState.value[field]) {
+        return;
+    }
+
+    const controlled = props.controlledFilters?.[field];
+    if (controlled && pinnedFilterKeys.value.includes(field)) {
+        applyFilterChange({
+            ...filters.value,
+            [field]: controlled,
+        });
+        return;
+    }
+
     const nextFilters = { ...filters.value };
     const column = props.columns.find((col) => resolveFilterKey(col) === field);
     const filterConfig = column ? getFilterConfig(column) : null;
@@ -939,7 +1043,10 @@ const exportTable = async () => {
     exporting.value = true;
 
     try {
-        const cleanedFilters = cleanFilters(tableState.value.filters);
+        const cleanedFilters = mergeRequestFilters(
+            cleanFilters(tableState.value.filters as Record<string, DataTableFilter>),
+            cleanFilters(extraFiltersState.value),
+        );
 
         const params: Record<string, unknown> = {
             first: tableState.value.first,

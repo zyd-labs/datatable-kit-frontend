@@ -1,4 +1,3 @@
-import { FilterMatchMode } from '@primevue/core/api';
 import type { ColumnDef, ColumnFilterConfig, DataTableFilter, MatchMode } from '../types/datatable';
 
 export const getFilterConfig = (column: ColumnDef): ColumnFilterConfig | null => {
@@ -73,16 +72,16 @@ export const getDefaultMatchMode = (column: ColumnDef, filter?: ColumnFilterConf
         case 'lookup':
         case 'select':
         case 'boolean':
-            return FilterMatchMode.EQUALS as MatchMode;
+            return 'equals';
         case 'lookup-multiple':
         case 'multi-select':
-            return FilterMatchMode.IN as MatchMode;
+            return 'in';
         case 'date-range':
-            return FilterMatchMode.BETWEEN as MatchMode;
+            return 'between';
         case 'date':
-            return FilterMatchMode.DATE_IS as MatchMode;
+            return 'dateIs';
         default:
-            return FilterMatchMode.CONTAINS as MatchMode;
+            return 'contains';
     }
 };
 

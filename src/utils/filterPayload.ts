@@ -13,7 +13,16 @@ export const isConstraintValueEmpty = (value: unknown): boolean => {
         return value.length === 0;
     }
 
+    // 0 and false are meaningful filter values
     return false;
+};
+
+export const isBetweenConstraintComplete = (value: unknown): boolean => {
+    if (!Array.isArray(value) || value.length !== 2) {
+        return false;
+    }
+
+    return !isConstraintValueEmpty(value[0]) && !isConstraintValueEmpty(value[1]);
 };
 
 export const formatDateValue = (value: unknown): unknown => {
@@ -59,9 +68,13 @@ export const cleanFilters = (rawFilters: Record<string, DataTableFilter>): Recor
             return;
         }
 
-        const validConstraints = filter.constraints.filter(
-            (constraint) => !isConstraintValueEmpty(constraint.value),
-        );
+        const validConstraints = filter.constraints.filter((constraint) => {
+            if (constraint.matchMode === 'between') {
+                return isBetweenConstraintComplete(constraint.value);
+            }
+
+            return !isConstraintValueEmpty(constraint.value);
+        });
 
         if (validConstraints.length > 0) {
             cleaned[field] = {

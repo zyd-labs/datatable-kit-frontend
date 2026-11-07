@@ -22,7 +22,7 @@
                 <Select
                     v-if="shouldShowMatchModes(column)"
                     :model-value="getConstraint(column)?.matchMode"
-                    :options="matchModeOptions"
+                    :options="matchModeOptionsFor(column)"
                     optionLabel="label"
                     optionValue="value"
                     :placeholder="labels.matchMode"
@@ -44,6 +44,7 @@
                 <DataTableFilterField
                     :column="column"
                     :model-value="getConstraint(column)?.value ?? null"
+                    :match-mode="getConstraint(column)?.matchMode"
                     @update:model-value="(value) => updateValue(column, value)"
                     @selection-meta="(options) => onLookupSelectionMeta(column, options)"
                 />
@@ -79,15 +80,17 @@
 
 <script setup lang="ts">
 import type { LookupOption } from '@zyd-labs/primevue-lookup';
-import { FilterMatchMode } from '@primevue/core/api';
 import { Button, Drawer, Select } from 'primevue';
 import { computed } from 'vue';
 import type { ColumnDef, DataTableFilter, FilterConstraint, MatchMode } from '../../types/datatable';
 import {
+    getAllowedMatchModes,
     getDefaultMatchMode,
     getFilterConfig,
     isFilterableColumn,
     resolveFilterKey,
+    shouldShowMatchModes,
+    shouldShowOperator,
 } from '../../utils/columnFilters';
 import { DATATABLE_LABELS } from '../../utils/labels';
 import DataTableFilterField from './DataTableFilterField.vue';
@@ -108,24 +111,31 @@ const labels = DATATABLE_LABELS;
 
 const filterableColumns = computed(() => props.columns.filter((column) => isFilterableColumn(column)));
 
-const matchModeOptions = [
-    { label: 'İçerir', value: FilterMatchMode.CONTAINS },
-    { label: 'İle başlar', value: FilterMatchMode.STARTS_WITH },
-    { label: 'İle biter', value: FilterMatchMode.ENDS_WITH },
-    { label: 'Eşittir', value: FilterMatchMode.EQUALS },
-    { label: 'Eşit değildir', value: FilterMatchMode.NOT_EQUALS },
-    { label: 'İçermez', value: FilterMatchMode.NOT_CONTAINS },
-    { label: 'Küçüktür', value: FilterMatchMode.LT },
-    { label: 'Küçük eşittir', value: FilterMatchMode.LTE },
-    { label: 'Büyüktür', value: FilterMatchMode.GT },
-    { label: 'Büyük eşittir', value: FilterMatchMode.GTE },
-    { label: 'Arasında', value: FilterMatchMode.BETWEEN },
-    { label: 'İçinde', value: FilterMatchMode.IN },
-    { label: 'Tarih eşit', value: FilterMatchMode.DATE_IS },
-    { label: 'Tarih eşit değil', value: FilterMatchMode.DATE_IS_NOT },
-    { label: 'Tarihten önce', value: FilterMatchMode.DATE_BEFORE },
-    { label: 'Tarihten sonra', value: FilterMatchMode.DATE_AFTER },
-];
+const MATCH_MODE_LABELS: Record<MatchMode, string> = {
+    contains: 'İçerir',
+    startsWith: 'İle başlar',
+    endsWith: 'İle biter',
+    equals: 'Eşittir',
+    notEquals: 'Eşit değildir',
+    notContains: 'İçermez',
+    lt: 'Küçüktür',
+    lte: 'Küçük eşittir',
+    gt: 'Büyüktür',
+    gte: 'Büyük eşittir',
+    between: 'Arasında',
+    in: 'İçinde',
+    dateIs: 'Tarih eşit',
+    dateIsNot: 'Tarih eşit değil',
+    dateBefore: 'Tarihten önce',
+    dateAfter: 'Tarihten sonra',
+};
+
+const matchModeOptionsFor = (column: ColumnDef) => {
+    return getAllowedMatchModes(column).map((value) => ({
+        label: MATCH_MODE_LABELS[value],
+        value,
+    }));
+};
 
 const operatorOptions = [
     { label: labels.operatorAnd, value: 'and' },
@@ -144,30 +154,28 @@ const getConstraint = (column: ColumnDef): FilterConstraint | undefined => {
     return getFilter(column)?.constraints?.[0];
 };
 
-const shouldShowMatchModes = (column: ColumnDef): boolean => {
-    const config = getFilterConfig(column);
-    return !(config?.showMatchModes === false);
-};
-
-const shouldShowOperator = (column: ColumnDef): boolean => {
-    const config = getFilterConfig(column);
-    return !(config?.showOperator === false);
-};
-
 const ensureFilter = (column: ColumnDef): DataTableFilter => {
     const existing = getFilter(column);
+    const allowed = getAllowedMatchModes(column);
+    const defaultMode = getDefaultMatchMode(column, getFilterConfig(column));
+
     if (existing) {
+        const first = existing.constraints?.[0];
+        const matchMode = first?.matchMode && allowed.includes(first.matchMode)
+            ? first.matchMode
+            : defaultMode;
+
         return {
             operator: existing.operator ?? 'and',
             constraints: existing.constraints?.length
-                ? [...existing.constraints]
-                : [{ value: null, matchMode: getDefaultMatchMode(column, getFilterConfig(column)) }],
+                ? [{ ...first!, matchMode }]
+                : [{ value: null, matchMode: defaultMode }],
         };
     }
 
     return {
         operator: getFilterConfig(column)?.operator || 'and',
-        constraints: [{ value: null, matchMode: getDefaultMatchMode(column, getFilterConfig(column)) }],
+        constraints: [{ value: null, matchMode: defaultMode }],
     };
 };
 
@@ -200,10 +208,19 @@ const updateMatchMode = (column: ColumnDef, matchMode: MatchMode): void => {
         value: null,
         matchMode,
     };
+    const previousMode = first.matchMode;
+    let nextValue = first.value;
+
+    if (previousMode === 'between' && matchMode !== 'between') {
+        nextValue = Array.isArray(nextValue) ? (nextValue[0] ?? null) : nextValue;
+    } else if (previousMode !== 'between' && matchMode === 'between') {
+        nextValue = [nextValue ?? null, null];
+    }
 
     filter.constraints[0] = {
         ...first,
         matchMode,
+        value: nextValue,
     };
 
     patchFilter(column, filter);

@@ -64,7 +64,13 @@ export interface ColumnFilterOption {
 }
 
 export interface ColumnFilterConfig {
-    filterType?: 'text' | 'select' | 'multi-select' | 'lookup' | 'lookup-multiple' | 'date' | 'date-range' | 'boolean';
+    filterType?: 'text' | 'numeric' | 'select' | 'multi-select' | 'lookup' | 'lookup-multiple' | 'date' | 'date-range' | 'boolean';
+    /** When true, InputNumber uses decimal mode (currency/rate/qty). Default: integer-friendly. */
+    numericMode?: 'decimal' | 'currency' | 'integer';
+    minFractionDigits?: number;
+    maxFractionDigits?: number;
+    currency?: string;
+    locale?: string;
     filterMatchMode?: MatchMode;
     filterOptions?: ColumnFilterOption[];
     filterOptionLabel?: string;
@@ -73,6 +79,25 @@ export interface ColumnFilterConfig {
     lookupParams?: Record<string, unknown>;
     lookupOptionLabel?: string;
     lookupOptionValue?: string;
+    /** Optional fetcher that adapts app list APIs into LookupSelect responses. */
+    lookupFetcher?: (params: {
+        endpoint: string;
+        q?: string;
+        page?: number;
+        perPage?: number;
+        selected?: Array<string | number>;
+        exclude?: Array<string | number>;
+        filters?: Record<string, unknown>;
+        signal?: AbortSignal;
+    }) => Promise<{
+        data: Array<{ value: string | number; label: string; meta?: Record<string, unknown> }>;
+        pagination: {
+            page: number;
+            per_page: number;
+            has_more: boolean;
+            total?: number | null;
+        };
+    }>;
     filterPlaceholder?: string;
     operator?: 'and' | 'or';
     showMatchModes?: boolean;

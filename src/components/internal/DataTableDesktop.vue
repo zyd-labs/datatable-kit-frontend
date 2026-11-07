@@ -150,6 +150,7 @@
                 <DataTableFilterField
                     :column="col"
                     :model-value="filterModel.value"
+                    :match-mode="filterModel.matchMode"
                     @update:model-value="(value) => { filterModel.value = value; }"
                     @selection-meta="(options) => emit('lookup-selection-meta', { column: col, filterModel, options })"
                 />

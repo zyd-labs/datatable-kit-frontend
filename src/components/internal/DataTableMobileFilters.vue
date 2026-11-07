@@ -22,11 +22,12 @@
                 <Select
                     v-if="shouldShowMatchModes(column)"
                     :model-value="getConstraint(column)?.matchMode"
-                    :options="matchModeOptionsFor(column)"
+                    :options="getMatchModeOptions(column)"
                     optionLabel="label"
                     optionValue="value"
                     :placeholder="labels.matchMode"
                     class="w-full"
+                    appendTo="self"
                     @update:model-value="(value) => updateMatchMode(column, value)"
                 />
 
@@ -38,6 +39,7 @@
                     optionValue="value"
                     :placeholder="labels.operator"
                     class="w-full"
+                    appendTo="self"
                     @update:model-value="(value) => updateOperator(column, value)"
                 />
 
@@ -93,6 +95,10 @@ import {
     shouldShowOperator,
 } from '../../utils/columnFilters';
 import { DATATABLE_LABELS } from '../../utils/labels';
+import {
+    adaptConstraintValueForMatchMode,
+    getMatchModeOptions,
+} from '../../utils/matchModeOptions';
 import DataTableFilterField from './DataTableFilterField.vue';
 
 const props = defineProps<{
@@ -110,32 +116,6 @@ const emit = defineEmits<{
 const labels = DATATABLE_LABELS;
 
 const filterableColumns = computed(() => props.columns.filter((column) => isFilterableColumn(column)));
-
-const MATCH_MODE_LABELS: Record<MatchMode, string> = {
-    contains: 'İçerir',
-    startsWith: 'İle başlar',
-    endsWith: 'İle biter',
-    equals: 'Eşittir',
-    notEquals: 'Eşit değildir',
-    notContains: 'İçermez',
-    lt: 'Küçüktür',
-    lte: 'Küçük eşittir',
-    gt: 'Büyüktür',
-    gte: 'Büyük eşittir',
-    between: 'Arasında',
-    in: 'İçinde',
-    dateIs: 'Tarih eşit',
-    dateIsNot: 'Tarih eşit değil',
-    dateBefore: 'Tarihten önce',
-    dateAfter: 'Tarihten sonra',
-};
-
-const matchModeOptionsFor = (column: ColumnDef) => {
-    return getAllowedMatchModes(column).map((value) => ({
-        label: MATCH_MODE_LABELS[value],
-        value,
-    }));
-};
 
 const operatorOptions = [
     { label: labels.operatorAnd, value: 'and' },
@@ -208,19 +188,11 @@ const updateMatchMode = (column: ColumnDef, matchMode: MatchMode): void => {
         value: null,
         matchMode,
     };
-    const previousMode = first.matchMode;
-    let nextValue = first.value;
-
-    if (previousMode === 'between' && matchMode !== 'between') {
-        nextValue = Array.isArray(nextValue) ? (nextValue[0] ?? null) : nextValue;
-    } else if (previousMode !== 'between' && matchMode === 'between') {
-        nextValue = [nextValue ?? null, null];
-    }
 
     filter.constraints[0] = {
         ...first,
         matchMode,
-        value: nextValue,
+        value: adaptConstraintValueForMatchMode(first.matchMode, matchMode, first.value),
     };
 
     patchFilter(column, filter);

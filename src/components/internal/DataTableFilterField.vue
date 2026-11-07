@@ -1,7 +1,7 @@
 <template>
     <MultiSelect
         v-if="filterType === 'multi-select'"
-        :model-value="modelValue"
+        :model-value="multiSelectModelValue"
         :options="filterOptions"
         :optionLabel="optionLabel"
         :optionValue="optionValue"
@@ -10,7 +10,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
-        @update:model-value="onValueUpdate"
+        @update:model-value="onMultiSelectUpdate"
     />
 
     <LookupSelect
@@ -152,6 +152,19 @@ const effectiveMatchMode = computed(
     () => props.matchMode ?? getDefaultMatchMode(props.column, filterConfig.value),
 );
 
+/** PrimeVue MultiSelect requires an array; coerce scalar controlled-filter values. */
+const multiSelectModelValue = computed(() => {
+    if (Array.isArray(props.modelValue)) {
+        return props.modelValue;
+    }
+
+    if (props.modelValue == null || props.modelValue === '') {
+        return null;
+    }
+
+    return [props.modelValue];
+});
+
 const numericProps = computed(() => {
     const mode = filterConfig.value?.numericMode ?? 'decimal';
     if (mode === 'currency') {
@@ -195,6 +208,16 @@ const rangeEnd = computed(() => {
 
 const onValueUpdate = (value: unknown): void => {
     emit('update:modelValue', value);
+};
+
+const onMultiSelectUpdate = (value: unknown): void => {
+    if (value == null || value === '') {
+        emit('update:modelValue', null);
+
+        return;
+    }
+
+    emit('update:modelValue', Array.isArray(value) ? value : [value]);
 };
 
 const onRangeUpdate = (index: 0 | 1, value: number | null): void => {

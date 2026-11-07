@@ -1,5 +1,10 @@
-import type { ColumnDef, DataTableFilter } from '../types/datatable';
-import { getDefaultMatchMode, getFilterConfig, resolveFilterKey } from './columnFilters';
+import type { ColumnDef, DataTableFilter, FilterConstraint } from '../types/datatable';
+import {
+    getDefaultMatchMode,
+    getFilterConfig,
+    resolveFilterKey,
+    resolveFilterType,
+} from './columnFilters';
 
 export function blankColumnFilter(column: ColumnDef): DataTableFilter {
     const filterConfig = getFilterConfig(column);
@@ -12,6 +17,43 @@ export function blankColumnFilter(column: ColumnDef): DataTableFilter {
                 matchMode: getDefaultMatchMode(column, filterConfig),
             },
         ],
+    };
+}
+
+/**
+ * Coerce multi-select / lookup-multiple constraints to `in` + array values
+ * so controlled quick-filters using scalar `equals` do not crash MultiSelect.
+ */
+export function normalizeFilterForColumn(
+    column: ColumnDef,
+    filter: DataTableFilter,
+): DataTableFilter {
+    const filterType = resolveFilterType(column);
+    if (filterType !== 'multi-select' && filterType !== 'lookup-multiple') {
+        return filter;
+    }
+
+    const constraints = (filter.constraints ?? []).map((constraint): FilterConstraint => {
+        const rawValue = constraint.value;
+        let value: unknown = rawValue;
+        if (rawValue == null || rawValue === '') {
+            value = null;
+        } else if (!Array.isArray(rawValue)) {
+            value = [rawValue];
+        }
+
+        return {
+            ...constraint,
+            matchMode: constraint.matchMode === 'equals' || !constraint.matchMode
+                ? 'in'
+                : constraint.matchMode,
+            value,
+        };
+    });
+
+    return {
+        ...filter,
+        constraints,
     };
 }
 
@@ -43,9 +85,12 @@ export function mergeControlledFilters(options: {
     });
 
     Object.entries(incoming).forEach(([key, value]) => {
-        if (value?.constraints?.length) {
-            next[key] = value;
+        if (!value?.constraints?.length) {
+            return;
         }
+
+        const column = findColumnByFilterKey(options.columns, key);
+        next[key] = column ? normalizeFilterForColumn(column, value) : value;
     });
 
     return {

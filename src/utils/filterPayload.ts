@@ -48,6 +48,51 @@ export const formatDateValue = (value: unknown): unknown => {
     return value;
 };
 
+/**
+ * Coerce API / quick-filter date strings into Date instances for PrimeVue DatePicker.
+ * Passing `YYYY-MM-DD` with `dateFormat="dd/mm/yy"` throws "Unexpected literal at position 2".
+ */
+export const parseFilterDate = (value: unknown): Date | null => {
+    if (value == null || value === '') {
+        return null;
+    }
+
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value;
+    }
+
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const localDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (localDateMatch) {
+        const year = Number(localDateMatch[1]);
+        const month = Number(localDateMatch[2]);
+        const day = Number(localDateMatch[3]);
+        const date = new Date(year, month - 1, day);
+
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const date = new Date(trimmed);
+
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const toDatePickerModel = (value: unknown): Date | Date[] | null => {
+    if (Array.isArray(value)) {
+        return value.map((item) => parseFilterDate(item));
+    }
+
+    return parseFilterDate(value);
+};
+
 export const normalizePayloadConstraint = (constraint: FilterConstraint): FilterConstraint => {
     return {
         value: formatDateValue(constraint.value),

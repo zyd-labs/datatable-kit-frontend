@@ -43,7 +43,7 @@
 
     <DatePicker
         v-else-if="filterType === 'date-range' || (filterType === 'date' && effectiveMatchMode === 'between')"
-        :model-value="modelValue as Date | Date[] | null"
+        :model-value="datePickerModel as Date | Date[] | null"
         selectionMode="range"
         dateFormat="dd/mm/yy"
         :placeholder="placeholder"
@@ -55,7 +55,7 @@
 
     <DatePicker
         v-else-if="filterType === 'date'"
-        :model-value="modelValue as Date | null"
+        :model-value="datePickerModel as Date | null"
         dateFormat="dd/mm/yy"
         :placeholder="placeholder"
         size="small"
@@ -126,6 +126,7 @@ import {
     resolveNestedFilterOverlayAppendTo,
     resolveSelectOptions,
 } from '../../utils/columnFilters';
+import { toDatePickerModel } from '../../utils/filterPayload';
 
 const props = defineProps<{
     column: ColumnDef;
@@ -156,6 +157,9 @@ const isNumeric = computed(() => filterType.value === 'numeric' || props.column.
 const effectiveMatchMode = computed(
     () => props.matchMode ?? getDefaultMatchMode(props.column, filterConfig.value),
 );
+
+/** Quick-filters / API payloads use YYYY-MM-DD strings; DatePicker needs Date instances. */
+const datePickerModel = computed(() => toDatePickerModel(props.modelValue));
 
 /** PrimeVue MultiSelect requires an array; coerce scalar controlled-filter values. */
 const multiSelectModelValue = computed(() => {

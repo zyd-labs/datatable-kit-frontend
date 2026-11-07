@@ -49,6 +49,13 @@ describe('DataTable multi-select filter contract', () => {
         expect(filterFieldSource).toContain('resolveNestedFilterOverlayAppendTo');
     });
 
+    it('coerces date filter strings through toDatePickerModel for DatePicker', () => {
+        expect(filterFieldSource).toContain("from '../../utils/filterPayload'");
+        expect(filterFieldSource).toContain('toDatePickerModel');
+        expect(filterFieldSource).toContain(':model-value="datePickerModel as Date | null"');
+        expect(filterFieldSource).toContain(':model-value="datePickerModel as Date | Date[] | null"');
+    });
+
     it('preserves option / confirmed selections through controlled merge + cleanFilters', () => {
         const afterOption = normalizeFilterForColumn(statusColumn, {
             operator: 'and',

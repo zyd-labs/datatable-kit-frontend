@@ -75,9 +75,23 @@ export const parseFilterDate = (value: unknown): Date | null => {
         const year = Number(localDateMatch[1]);
         const month = Number(localDateMatch[2]);
         const day = Number(localDateMatch[3]);
-        const date = new Date(year, month - 1, day);
 
-        return Number.isNaN(date.getTime()) ? null : date;
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+            return null;
+        }
+
+        // Reject JS Date overflow (e.g. 2026-02-31 → March).
+        const date = new Date(year, month - 1, day);
+        if (
+            Number.isNaN(date.getTime())
+            || date.getFullYear() !== year
+            || date.getMonth() !== month - 1
+            || date.getDate() !== day
+        ) {
+            return null;
+        }
+
+        return date;
     }
 
     const date = new Date(trimmed);

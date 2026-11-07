@@ -4,6 +4,7 @@ import {
     getAllowedMatchModes,
     getDefaultMatchMode,
     resolveFilterType,
+    resolveNestedFilterOverlayAppendTo,
     shouldShowMatchModes,
 } from '../columnFilters';
 
@@ -72,5 +73,14 @@ describe('columnFilters data-type defaults', () => {
             'dateAfter',
             'between',
         ]);
+    });
+
+    it('keeps nested ColumnFilter overlays in-tree for select-like controls', () => {
+        expect(resolveNestedFilterOverlayAppendTo('multi-select')).toBe('self');
+        expect(resolveNestedFilterOverlayAppendTo('select')).toBe('self');
+        expect(resolveNestedFilterOverlayAppendTo('boolean')).toBe('self');
+        expect(resolveNestedFilterOverlayAppendTo('date')).toBe('self');
+        expect(resolveNestedFilterOverlayAppendTo('text')).toBe('body');
+        expect(resolveNestedFilterOverlayAppendTo('lookup')).toBe('body');
     });
 });

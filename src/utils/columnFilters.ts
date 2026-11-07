@@ -187,3 +187,23 @@ export const shouldShowOperator = (column: ColumnDef): boolean => {
 
     return !(config?.showOperator === false);
 };
+
+/**
+ * Nested overlays inside PrimeVue ColumnFilter must stay in-tree (`self`).
+ * Portaling to `body` makes ColumnFilter treat option clicks as outside-click
+ * (see OverlayEventBus selfClick check against the filter overlay node).
+ */
+export const resolveNestedFilterOverlayAppendTo = (
+    filterType: ResolvedFilterType,
+): 'self' | 'body' => {
+    switch (filterType) {
+        case 'select':
+        case 'boolean':
+        case 'multi-select':
+        case 'date':
+        case 'date-range':
+            return 'self';
+        default:
+            return 'body';
+    }
+};

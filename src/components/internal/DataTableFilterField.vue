@@ -10,6 +10,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
+        :appendTo="nestedOverlayAppendTo"
         @update:model-value="onMultiSelectUpdate"
     />
 
@@ -36,7 +37,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
-        appendTo="self"
+        :appendTo="nestedOverlayAppendTo"
         @update:model-value="onValueUpdate"
     />
 
@@ -48,6 +49,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
+        :appendTo="nestedOverlayAppendTo"
         @update:model-value="onValueUpdate"
     />
 
@@ -58,6 +60,7 @@
         :placeholder="placeholder"
         size="small"
         class="w-full"
+        :appendTo="nestedOverlayAppendTo"
         @update:model-value="onValueUpdate"
     />
 
@@ -120,6 +123,7 @@ import {
     getFilterOptions,
     resolveFilterPlaceholder,
     resolveFilterType,
+    resolveNestedFilterOverlayAppendTo,
     resolveSelectOptions,
 } from '../../utils/columnFilters';
 
@@ -135,6 +139,7 @@ const emit = defineEmits<{
 }>();
 
 const filterType = computed(() => resolveFilterType(props.column));
+const nestedOverlayAppendTo = computed(() => resolveNestedFilterOverlayAppendTo(filterType.value));
 const filterConfig = computed(() => getFilterConfig(props.column));
 const filterOptions = computed(() => getFilterOptions(props.column));
 const selectOptions = computed(() => resolveSelectOptions(props.column));

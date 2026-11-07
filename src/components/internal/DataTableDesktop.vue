@@ -139,47 +139,21 @@
             :header="col.header"
             :sortable="col.sortable !== false"
             :dataType="resolveColumnDataType(col)"
-            :showFilterMatchModes="false"
-            :showFilterOperator="false"
+            :showFilterMatchModes="col.filter === false ? false : !(getFilterConfig(col)?.showMatchModes === false)"
+            :showFilterOperator="col.filter === false ? false : !(getFilterConfig(col)?.showOperator === false)"
         >
             <template #body="slotProps" v-if="col.render">
                 <DataTableCellRender :render="col.render" :data="slotProps.data" />
             </template>
 
             <template #filter="{ filterModel }" v-if="col.filter !== false">
-                <div class="flex w-full flex-col gap-2">
-                    <Select
-                        v-if="shouldShowMatchModes(col)"
-                        :model-value="filterModel.matchMode"
-                        :options="getMatchModeOptions(col)"
-                        optionLabel="label"
-                        optionValue="value"
-                        :placeholder="labels.matchMode"
-                        size="small"
-                        class="w-full"
-                        appendTo="self"
-                        @update:model-value="(mode) => onMatchModeUpdate(col, filterModel, mode)"
-                    />
-                    <Select
-                        v-if="shouldShowOperator(col)"
-                        :model-value="resolveConstraintOperator(col)"
-                        :options="operatorOptions"
-                        optionLabel="label"
-                        optionValue="value"
-                        :placeholder="labels.operator"
-                        size="small"
-                        class="w-full"
-                        appendTo="self"
-                        @update:model-value="(operator) => onOperatorUpdate(col, operator)"
-                    />
-                    <DataTableFilterField
-                        :column="col"
-                        :model-value="filterModel.value"
-                        :match-mode="filterModel.matchMode"
-                        @update:model-value="(value) => { filterModel.value = value; }"
-                        @selection-meta="(options) => emit('lookup-selection-meta', { column: col, filterModel, options })"
-                    />
-                </div>
+                <DataTableFilterField
+                    :column="col"
+                    :model-value="filterModel.value"
+                    :match-mode="filterModel.matchMode"
+                    @update:model-value="(value) => { filterModel.value = value; }"
+                    @selection-meta="(options) => emit('lookup-selection-meta', { column: col, filterModel, options })"
+                />
             </template>
         </Column>
 
@@ -212,29 +186,16 @@ import {
     DataTable,
     InputText,
     MultiSelect,
-    Select,
     Skeleton,
 } from 'primevue';
 import { computed, ref } from 'vue';
-import type {
-    ColumnDef,
-    DataTableFilter,
-    DataTableRowClassResolver,
-    DataViewMode,
-    MatchMode,
-} from '../../types/datatable';
+import type { ColumnDef, DataTableFilter, DataTableRowClassResolver, DataViewMode } from '../../types/datatable';
 import { DATATABLE_ROWS_PER_PAGE_OPTIONS } from '../../types/datatable';
 import {
+    getFilterConfig,
     resolveColumnDataType,
-    resolveFilterKey,
-    shouldShowMatchModes,
-    shouldShowOperator,
 } from '../../utils/columnFilters';
 import { DATATABLE_LABELS } from '../../utils/labels';
-import {
-    adaptConstraintValueForMatchMode,
-    getMatchModeOptions,
-} from '../../utils/matchModeOptions';
 import DataTableCellRender from './DataTableCellRender';
 import DataTableFilterField from './DataTableFilterField.vue';
 import DataTableViewToggle from './DataTableViewToggle.vue';
@@ -292,49 +253,6 @@ const emit = defineEmits<{
 
 const labels = DATATABLE_LABELS;
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null);
-
-const operatorOptions = [
-    { label: labels.operatorAnd, value: 'and' },
-    { label: labels.operatorOr, value: 'or' },
-];
-
-const resolveConstraintOperator = (column: ColumnDef): 'and' | 'or' => {
-    return props.filters[resolveFilterKey(column)]?.operator ?? 'and';
-};
-
-const onMatchModeUpdate = (
-    column: ColumnDef,
-    filterModel: { value: unknown; matchMode?: MatchMode },
-    mode: MatchMode | null,
-): void => {
-    if (!mode) {
-        return;
-    }
-
-    const previousMode = filterModel.matchMode;
-    filterModel.matchMode = mode;
-    filterModel.value = adaptConstraintValueForMatchMode(previousMode, mode, filterModel.value);
-};
-
-const onOperatorUpdate = (column: ColumnDef, operator: 'and' | 'or' | null): void => {
-    if (!operator) {
-        return;
-    }
-
-    const key = resolveFilterKey(column);
-    const current = props.filters[key];
-    if (!current) {
-        return;
-    }
-
-    emit('update:filters', {
-        ...props.filters,
-        [key]: {
-            ...current,
-            operator,
-        },
-    });
-};
 
 const visibleColumnsData = computed(() =>
     props.columns.filter((col) => props.visibleColumns.includes(col.field)),
